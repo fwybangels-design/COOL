@@ -744,8 +744,8 @@ class AuthControlPanel:
             # Close the window
             self.root.destroy()
         except Exception as e:
-            # If auto-save fails, still allow closing
-            print(f"Error during auto-save: {e}")
+            # If auto-save fails, still allow closing but log the error
+            logging.error(f"Error during auto-save on close: {e}")
             self.root.destroy()
     
     def save_config_silent(self):
