@@ -184,24 +184,25 @@ class AuthControlPanel:
     
     def load_custom_ascii_art(self):
         """Load custom ASCII art from file if it exists."""
-        ascii_file = os.path.join(os.path.dirname(__file__), 'custom_ascii.txt')
-        if os.path.exists(ascii_file):
-            try:
+        try:
+            ascii_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'custom_ascii.txt')
+            if os.path.exists(ascii_file):
                 with open(ascii_file, 'r', encoding='utf-8') as f:
                     return f.read()
-            except Exception:
-                pass
+        except (IOError, OSError) as e:
+            # Log error but return default
+            print(f"Warning: Could not load custom ASCII art: {e}")
         return self.DEFAULT_ASCII_ART
     
     def save_custom_ascii_art(self, ascii_text):
         """Save custom ASCII art to file."""
-        ascii_file = os.path.join(os.path.dirname(__file__), 'custom_ascii.txt')
         try:
+            ascii_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'custom_ascii.txt')
             with open(ascii_file, 'w', encoding='utf-8') as f:
                 f.write(ascii_text)
             self.custom_ascii_art = ascii_text
             return True
-        except Exception as e:
+        except (IOError, OSError) as e:
             messagebox.showerror("Error", f"Failed to save ASCII art: {e}")
             return False
     
@@ -251,9 +252,12 @@ class AuthControlPanel:
         btn_container.pack(pady=15)
         
         def save_and_apply():
-            ascii_text = text_editor.get('1.0', tk.END)
+            # Get text without trailing newline
+            ascii_text = text_editor.get('1.0', 'end-1c')
             if self.save_custom_ascii_art(ascii_text):
-                messagebox.showinfo("Success", "ASCII art saved! Restart the panel to see changes.")
+                # Refresh the ASCII art display dynamically
+                self.refresh_ascii_art()
+                messagebox.showinfo("Success", "ASCII art saved and applied!")
                 editor.destroy()
         
         def reset_to_default():
@@ -312,14 +316,19 @@ class AuthControlPanel:
         background_ascii = self.custom_ascii_art
         
         # Create a label for the background ASCII with visible but subtle grey color
-        bg_ascii_label = tk.Label(parent,
+        self.bg_ascii_label = tk.Label(parent,
                                   text=background_ascii,
                                   font=("Courier New", 7),  # Readable font for background
                                   fg="#404040",  # Medium grey - visible but subtle on black background
                                   bg=ColorScheme.BG_DARK,
                                   justify=tk.CENTER)
         # Place it in the center background
-        bg_ascii_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        self.bg_ascii_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+    
+    def refresh_ascii_art(self):
+        """Refresh the ASCII art display with the current custom art."""
+        if hasattr(self, 'bg_ascii_label') and self.bg_ascii_label.winfo_exists():
+            self.bg_ascii_label.config(text=self.custom_ascii_art)
         
     def create_ui(self):
         """Create the main UI layout."""
