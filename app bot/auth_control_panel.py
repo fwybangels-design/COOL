@@ -310,25 +310,40 @@ class AuthControlPanel:
                               command=editor.destroy)
         cancel_btn.pack(side=tk.LEFT, padx=10)
         
-    def create_background_ascii(self, parent):
-        """Create the background ASCII art layer in the specified parent."""
-        # Use custom ASCII art if available
-        background_ascii = self.custom_ascii_art
+    def create_background_ascii_in_text_widget(self):
+        """Insert ASCII art as background watermark in the log text widget."""
+        if not hasattr(self, 'log_text') or not self.log_text:
+            return
+            
+        # Enable editing temporarily
+        self.log_text.config(state=tk.NORMAL)
         
-        # Create a label for the background ASCII with visible but subtle grey color
-        self.bg_ascii_label = tk.Label(parent,
-                                  text=background_ascii,
-                                  font=("Courier New", 7),  # Readable font for background
-                                  fg="#404040",  # Medium grey - visible but subtle on black background
-                                  bg=ColorScheme.BG_DARK,
-                                  justify=tk.CENTER)
-        # Place it in the center background
-        self.bg_ascii_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        # Clear any existing ASCII art watermark
+        try:
+            self.log_text.delete("ascii_start", "ascii_end")
+        except:
+            pass
+        
+        # Insert ASCII art at the beginning with a special tag
+        self.log_text.insert("1.0", self.custom_ascii_art + "\n\n", "ascii_watermark")
+        self.log_text.mark_set("ascii_start", "1.0")
+        self.log_text.mark_set("ascii_end", f"1.0 + {len(self.custom_ascii_art) + 2}c")
+        self.log_text.mark_gravity("ascii_start", tk.LEFT)
+        self.log_text.mark_gravity("ascii_end", tk.LEFT)
+        
+        # Configure the watermark tag to be very faded
+        self.log_text.tag_config("ascii_watermark", 
+                                foreground="#2a2a2a",  # Subtle dark grey, visible but faded
+                                font=("Courier New", 7))
+        # Make the watermark tag have lowest priority so logs appear on top
+        self.log_text.tag_lower("ascii_watermark")
+        
+        # Disable editing again
+        self.log_text.config(state=tk.DISABLED)
     
     def refresh_ascii_art(self):
         """Refresh the ASCII art display with the current custom art."""
-        if hasattr(self, 'bg_ascii_label') and self.bg_ascii_label.winfo_exists():
-            self.bg_ascii_label.config(text=self.custom_ascii_art)
+        self.create_background_ascii_in_text_widget()
         
     def create_ui(self):
         """Create the main UI layout."""
@@ -616,9 +631,6 @@ class AuthControlPanel:
         log_frame = tk.Frame(parent, bg=ColorScheme.BG_DARK, relief=tk.FLAT, bd=0)
         log_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Add ASCII art background to the log frame
-        self.create_background_ascii(log_frame)
-        
         # Section title
         title_container = tk.Frame(log_frame, bg=ColorScheme.BG_DARK)
         title_container.pack(fill=tk.X, pady=10, padx=15)
@@ -684,6 +696,9 @@ class AuthControlPanel:
         self.log_text.tag_config("WARNING", foreground=ColorScheme.TEXT_SECONDARY)
         self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_PRIMARY)
         self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_PRIMARY)
+        
+        # Add ASCII art as background watermark inside the text widget
+        self.create_background_ascii_in_text_widget()
         
     def load_config(self):
         """Load current configuration into the UI."""
@@ -851,9 +866,15 @@ class AuthControlPanel:
         self.root.after(100, self.update_logs)
         
     def clear_logs(self):
-        """Clear all logs from the viewer."""
+        """Clear all logs from the viewer, preserving the ASCII art watermark."""
         self.log_text.config(state=tk.NORMAL)
-        self.log_text.delete(1.0, tk.END)
+        # Delete everything except the ASCII art watermark
+        try:
+            self.log_text.delete("ascii_end", tk.END)
+        except:
+            # If marks don't exist, just clear everything and re-add ASCII art
+            self.log_text.delete(1.0, tk.END)
+            self.create_background_ascii_in_text_widget()
         self.log_text.config(state=tk.DISABLED)
         self.add_log("Logs cleared", "INFO")
     
