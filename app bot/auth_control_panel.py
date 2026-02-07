@@ -108,8 +108,8 @@ class AuthControlPanel:
         auth_logger.addHandler(log_handler)
         auth_logger.setLevel(logging.INFO)
         
-    def create_background_ascii(self):
-        """Create the background ASCII art layer."""
+    def create_background_ascii(self, parent):
+        """Create the background ASCII art layer in the specified parent."""
         # Background ASCII art - placed behind everything using place() before pack()
         # This ensures proper z-order layering with background behind all other widgets
         background_ascii = """
@@ -213,7 +213,7 @@ class AuthControlPanel:
 """
         
         # Create a label for the background ASCII with visible but subtle grey color
-        bg_ascii_label = tk.Label(self.root,
+        bg_ascii_label = tk.Label(parent,
                                   text=background_ascii,
                                   font=("Courier New", 7),  # Readable font for background
                                   fg="#404040",  # Medium grey - visible but subtle on black background
@@ -224,9 +224,6 @@ class AuthControlPanel:
         
     def create_ui(self):
         """Create the main UI layout."""
-        # Create background ASCII art layer first
-        self.create_background_ascii()
-        
         # Main container with two panels
         main_container = tk.Frame(self.root, bg=ColorScheme.BG_DARK)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -508,18 +505,21 @@ class AuthControlPanel:
                 
     def create_log_section(self, parent):
         """Create the live log viewer section."""
-        log_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.FLAT, bd=0)
+        log_frame = tk.Frame(parent, bg=ColorScheme.BG_DARK, relief=tk.FLAT, bd=0)
         log_frame.pack(fill=tk.BOTH, expand=True)
         
+        # Add ASCII art background to the log frame
+        self.create_background_ascii(log_frame)
+        
         # Section title
-        title_container = tk.Frame(log_frame, bg=ColorScheme.BG_MEDIUM)
+        title_container = tk.Frame(log_frame, bg=ColorScheme.BG_DARK)
         title_container.pack(fill=tk.X, pady=10, padx=15)
         
         tk.Label(title_container,
                 text="[ LIVE LOGS ]",
                 font=("Courier New", 12, "bold"),
                 fg=ColorScheme.ACCENT_PRIMARY,
-                bg=ColorScheme.BG_MEDIUM,
+                bg=ColorScheme.BG_DARK,
                 anchor=tk.W).pack(side=tk.LEFT)
         
         # Clear button with smooth modern aesthetic
