@@ -26,11 +26,12 @@ A modern, sleek graphical user interface for managing the Auth RestoreCord bot w
 - **Clear Function** - Clean up old logs
 
 ### 🎨 Professional Design
-- **Dark Aesthetic Theme** - Underground/niche style with deep blacks and neon accents
-- **Neon Colors** - Hot pink, electric purple, neon green, electric yellow
+- **Black and White Theme** - Pure monochrome aesthetic inspired by underground/doxbin style
+- **Monochrome Palette** - Pure blacks and whites with grey accents for maximum contrast
 - **Monospace Font** - Courier New for that terminal/hacker aesthetic
-- **ASCII Elements** - Decorative brackets and symbols
-- **Smooth Experience** - Clean, edgy design inspired by underground aesthetics
+- **ASCII Art** - Super detailed crypto anarchist cat with Bitcoin symbols
+- **ASCII Elements** - Decorative brackets and symbols throughout
+- **Clean Experience** - Minimalist, edgy design with no color distractions
 
 ## 🚀 Usage
 
@@ -92,15 +93,13 @@ The control panel organizes settings into logical groups:
 
 ## 🎨 Color Scheme
 
-The control panel uses a dark aesthetic neon palette:
+The control panel uses a pure black and white monochrome palette:
 
-- **Background**: Deep blacks (#0a0a0f, #12121a, #1a1a27)
-- **Primary Accent**: Hot Pink (#ff006e)
-- **Secondary Accent**: Electric Purple (#8338ec)
-- **Success**: Neon Green (#06ffa5)
-- **Warning**: Electric Yellow (#ffbe0b)
-- **Error**: Hot Pink (#ff006e)
-- **Text**: Soft purple-white tones for readability
+- **Background**: Pure blacks (#000000, #0a0a0a, #1a1a1a)
+- **Primary Accent**: Pure White (#ffffff)
+- **Secondary Accent**: Light Grey (#cccccc)
+- **Text**: White and grey tones (#ffffff, #b0b0b0, #666666)
+- **Buttons**: White on black for maximum contrast
 
 ## 📋 Requirements
 
@@ -117,10 +116,31 @@ brew install python-tk@3.9       # macOS
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
+│                   _.._                                       │
+│                 .'    '.                                     │
+│                /   __   \                                    │
+│               |   /  \   |                                   │
+│               |   \__/   |     ₿  Ξ                         │
+│              /\          /\                                  │
+│             /  '.______.'  \                                 │
+│            /    /|    |\    \                                │
+│           |    | |    | |    |                               │
+│           |    |_|    |_|    |                               │
+│           |   /   \  /   \   |                               │
+│           |  /     \/     \  |                               │
+│          /__/      ||      \__\                              │
+│         /   \      ||      /   \                             │
+│        /     \     ||     /     \                            │
+│       /  ⚡   \    ||    /  ₿   \                           │
+│      /__      \   ||   /      __\                            │
+│         \_    /\  ||  /\    _/                               │
+│           \__/  \_||_/  \__/                                 │
+│                 crypto anarchist                             │
+│                                                              │
 │           ◈ Auth RestoreCord Control ◈                      │
 │       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━               │
 │       [ Real-time Configuration & Monitoring ]               │
-│       ▲ unauthorized access logged ▲                         │
+│       ▲ crypto secured ▲                                     │
 ├──────────────────────────────────┬──────────────────────────┤
 │                                  │                          │
 │  [ BOT CONTROLS ]                │   [ LIVE LOGS ]          │
@@ -132,14 +152,9 @@ brew install python-tk@3.9       # macOS
 │                                  │                          │
 │  >> Discord Configuration        │   [12:35:00] Logs...     │
 │    Token: ●●●●●●●●●●●           │   [12:35:01] Continue... │
-│    Guild ID: 1234567890          │   [12:35:02] Running...  │
-│    ...                           │                          │
-│                                  │   [🗑 CLEAR]             │
-│  >> RestoreCord Settings         │                          │
-│    URL: https://...              │                          │
-│    ...                           │                          │
+│    ...                           │   [12:35:02] Running...  │
 │                                  │                          │
-│  >> Message Forwarding Config    │                          │
+│  >> Message Forwarding Config    │   [🗑 CLEAR]             │
 │    Source Channel ID: ...        │                          │
 │    ...                           │                          │
 │                                  │                          │

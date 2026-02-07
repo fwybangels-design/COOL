@@ -25,25 +25,25 @@ except ImportError as e:
 
 
 class ColorScheme:
-    """Professional color scheme for the control panel - Dark aesthetic with neon accents."""
-    # Dark aesthetic theme colors inspired by underground/doxbin aesthetics
-    BG_DARK = "#0a0a0f"          # Deep black-purple
-    BG_MEDIUM = "#12121a"        # Darker charcoal
-    BG_LIGHT = "#1a1a27"         # Dark purple-grey
-    ACCENT_PRIMARY = "#ff006e"   # Hot pink/magenta
-    ACCENT_SECONDARY = "#8338ec" # Electric purple
-    ACCENT_SUCCESS = "#06ffa5"   # Neon green
-    ACCENT_WARNING = "#ffbe0b"   # Electric yellow
-    ACCENT_ERROR = "#ff006e"     # Hot pink
-    TEXT_PRIMARY = "#e0e0ff"     # Soft white-purple
-    TEXT_SECONDARY = "#9d9db5"   # Muted purple-grey
-    TEXT_MUTED = "#5a5a6e"       # Very muted purple
+    """Professional color scheme for the control panel - Black and white aesthetic."""
+    # Black and white theme inspired by underground/doxbin aesthetics
+    BG_DARK = "#000000"          # Pure black
+    BG_MEDIUM = "#0a0a0a"        # Nearly black
+    BG_LIGHT = "#1a1a1a"         # Dark grey
+    ACCENT_PRIMARY = "#ffffff"   # Pure white
+    ACCENT_SECONDARY = "#cccccc" # Light grey
+    ACCENT_SUCCESS = "#ffffff"   # White
+    ACCENT_WARNING = "#cccccc"   # Light grey
+    ACCENT_ERROR = "#ffffff"     # White
+    TEXT_PRIMARY = "#ffffff"     # Pure white
+    TEXT_SECONDARY = "#b0b0b0"   # Medium grey
+    TEXT_MUTED = "#666666"       # Dark grey
     
-    # Button colors with neon aesthetic
-    BTN_PRIMARY = "#ff006e"      # Hot pink
-    BTN_SUCCESS = "#06ffa5"      # Neon green
-    BTN_DANGER = "#ff006e"       # Hot pink
-    BTN_WARNING = "#ffbe0b"      # Electric yellow
+    # Button colors with monochrome aesthetic
+    BTN_PRIMARY = "#ffffff"      # White
+    BTN_SUCCESS = "#ffffff"      # White
+    BTN_DANGER = "#ffffff"       # White
+    BTN_WARNING = "#ffffff"      # White
 
 
 class LogHandler(logging.Handler):
@@ -125,13 +125,45 @@ class AuthControlPanel:
         header = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
         header.pack(fill=tk.X, pady=(0, 10))
         
+        # Super detailed ASCII art crypto cat
+        crypto_cat = """
+                       _.._
+                     .'    '.
+                    /   __   \\
+                   |   /  \\   |
+                   |   \\__/   |     ₿  Ξ
+                  /\\          /\\
+                 /  '.______.'  \\
+                /    /|    |\\    \\
+               |    | |    | |    |
+               |    |_|    |_|    |
+               |   /   \\  /   \\   |
+               |  /     \\/     \\  |
+              /__/      ||      \\__\\
+             /   \\      ||      /   \\
+            /     \\     ||     /     \\
+           /  ⚡   \\    ||    /  ₿   \\
+          /__      \\   ||   /      __\\
+             \\_    /\\  ||  /\\    _/
+               \\__/  \\_||_/  \\__/
+                     crypto
+                   anarchist
+        """
+        cat_label = tk.Label(header,
+                            text=crypto_cat,
+                            font=("Courier New", 7),
+                            fg=ColorScheme.TEXT_SECONDARY,
+                            bg=ColorScheme.BG_MEDIUM,
+                            justify=tk.CENTER)
+        cat_label.pack(pady=(5, 5))
+        
         # Main title with aesthetic styling
         title = tk.Label(header, 
                         text="◈ Auth RestoreCord Control ◈",
                         font=("Courier New", 24, "bold"),
                         fg=ColorScheme.ACCENT_PRIMARY,
                         bg=ColorScheme.BG_MEDIUM,
-                        pady=15)
+                        pady=5)
         title.pack()
         
         # Decorative line
@@ -153,7 +185,7 @@ class AuthControlPanel:
         
         # Bottom decorative element
         cat_art = tk.Label(header,
-                          text="▲ unauthorized access logged ▲",
+                          text="▲ crypto secured ▲",
                           font=("Courier New", 8),
                           fg=ColorScheme.TEXT_MUTED,
                           bg=ColorScheme.BG_MEDIUM,
@@ -189,7 +221,7 @@ class AuthControlPanel:
         self.status_label = tk.Label(status_container,
                                      text="◆ OFFLINE",
                                      font=("Courier New", 10, "bold"),
-                                     fg=ColorScheme.ACCENT_ERROR,
+                                     fg=ColorScheme.TEXT_SECONDARY,
                                      bg=ColorScheme.BG_MEDIUM)
         self.status_label.pack(side=tk.LEFT)
         
@@ -197,13 +229,13 @@ class AuthControlPanel:
         btn_container = tk.Frame(control_frame, bg=ColorScheme.BG_MEDIUM)
         btn_container.pack(fill=tk.X, padx=15, pady=(0, 15))
         
-        # Start button with neon aesthetic
+        # Start button with monochrome aesthetic
         self.start_btn = tk.Button(btn_container,
                                    text="[ ▶ START ]",
                                    font=("Courier New", 11, "bold"),
                                    fg=ColorScheme.BG_DARK,
                                    bg=ColorScheme.ACCENT_SUCCESS,
-                                   activebackground="#05dd8f",
+                                   activebackground="#cccccc",
                                    relief=tk.FLAT,
                                    cursor="hand2",
                                    padx=20,
@@ -211,13 +243,13 @@ class AuthControlPanel:
                                    command=self.start_bot)
         self.start_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         
-        # Stop button with neon aesthetic
+        # Stop button with monochrome aesthetic
         self.stop_btn = tk.Button(btn_container,
                                   text="[ ■ STOP ]",
                                   font=("Courier New", 11, "bold"),
-                                  fg=ColorScheme.TEXT_PRIMARY,
-                                  bg=ColorScheme.ACCENT_ERROR,
-                                  activebackground="#dd0060",
+                                  fg=ColorScheme.BG_DARK,
+                                  bg=ColorScheme.TEXT_SECONDARY,
+                                  activebackground="#999999",
                                   relief=tk.FLAT,
                                   cursor="hand2",
                                   padx=20,
@@ -226,13 +258,13 @@ class AuthControlPanel:
                                   command=self.stop_bot)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         
-        # Reload config button with neon aesthetic
+        # Reload config button with monochrome aesthetic
         reload_btn = tk.Button(btn_container,
                               text="[ ⟳ RELOAD ]",
                               font=("Courier New", 11, "bold"),
                               fg=ColorScheme.BG_DARK,
-                              bg=ColorScheme.ACCENT_WARNING,
-                              activebackground="#dda809",
+                              bg=ColorScheme.TEXT_SECONDARY,
+                              activebackground="#999999",
                               relief=tk.FLAT,
                               cursor="hand2",
                               padx=20,
@@ -256,13 +288,13 @@ class AuthControlPanel:
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Save button in title with neon aesthetic
+        # Save button in title with monochrome aesthetic
         save_btn = tk.Button(title_container,
                             text="[ 💾 SAVE ]",
                             font=("Courier New", 9, "bold"),
                             fg=ColorScheme.BG_DARK,
                             bg=ColorScheme.ACCENT_PRIMARY,
-                            activebackground="#dd005d",
+                            activebackground="#cccccc",
                             relief=tk.FLAT,
                             cursor="hand2",
                             padx=15,
@@ -378,13 +410,13 @@ class AuthControlPanel:
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Clear button with neon aesthetic
+        # Clear button with monochrome aesthetic
         clear_btn = tk.Button(title_container,
                              text="[ 🗑 CLEAR ]",
                              font=("Courier New", 9, "bold"),
-                             fg=ColorScheme.TEXT_PRIMARY,
-                             bg=ColorScheme.ACCENT_ERROR,
-                             activebackground="#dd0060",
+                             fg=ColorScheme.BG_DARK,
+                             bg=ColorScheme.TEXT_SECONDARY,
+                             activebackground="#999999",
                              relief=tk.FLAT,
                              cursor="hand2",
                              padx=15,
@@ -405,11 +437,11 @@ class AuthControlPanel:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
         
-        # Configure log text tags for colored output with neon colors
+        # Configure log text tags for colored output with monochrome colors
         self.log_text.tag_config("INFO", foreground=ColorScheme.ACCENT_PRIMARY)
-        self.log_text.tag_config("WARNING", foreground=ColorScheme.ACCENT_WARNING)
-        self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_ERROR)
-        self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_SUCCESS)
+        self.log_text.tag_config("WARNING", foreground=ColorScheme.TEXT_SECONDARY)
+        self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_PRIMARY)
+        self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_PRIMARY)
         
     def load_config(self):
         """Load current configuration into the UI."""
@@ -501,7 +533,7 @@ class AuthControlPanel:
             
         try:
             self.bot_running = True
-            self.update_status("ONLINE", ColorScheme.ACCENT_SUCCESS)
+            self.update_status("ONLINE", ColorScheme.ACCENT_PRIMARY)
             
             self.start_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.NORMAL)
@@ -529,7 +561,7 @@ class AuthControlPanel:
             
         try:
             self.bot_running = False
-            self.update_status("OFFLINE", ColorScheme.ACCENT_ERROR)
+            self.update_status("OFFLINE", ColorScheme.TEXT_SECONDARY)
             
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
