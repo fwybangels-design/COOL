@@ -50,8 +50,8 @@ class ColorScheme:
     HOVER_LIGHT = "#e0e0e0"      # Light hover
     HOVER_MEDIUM = "#999999"     # Medium hover
     
-    # ASCII art background color (very subtle, doesn't interfere with logs)
-    ASCII_BG = "#1a1a1a"         # Dark grey background
+    # ASCII art text color (very subtle, doesn't interfere with logs)
+    ASCII_TEXT = "#1a1a1a"       # Dark grey for ASCII art text
 
 
 class ASCIIArtConfig:
@@ -364,8 +364,6 @@ class AuthControlPanel:
         
         # Calculate dimensions for scaling - ensure minimum of 1 to prevent division by zero
         max_line_length = max((len(line) for line in ascii_lines), default=1)
-        if max_line_length == 0:
-            max_line_length = 1
         num_lines = len(ascii_lines)
         if num_lines == 0:
             return
@@ -398,7 +396,7 @@ class AuthControlPanel:
                 y_pos,
                 text=line,
                 font=("Courier New", font_size),
-                fill=ColorScheme.ASCII_BG,
+                fill=ColorScheme.ASCII_TEXT,
                 anchor="center"
             )
     
