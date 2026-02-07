@@ -2,7 +2,8 @@
 # Launcher script for Auth RestoreCord Control Panel
 
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║      Auth RestoreCord Control Panel - Launcher           ║"
+echo "║        ◈ Auth RestoreCord Control ◈                      ║"
+echo "║        Underground Edition - Panel Launcher               ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo ""
 

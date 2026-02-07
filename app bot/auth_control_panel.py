@@ -25,25 +25,25 @@ except ImportError as e:
 
 
 class ColorScheme:
-    """Professional color scheme for the control panel."""
-    # Dark theme colors
-    BG_DARK = "#1a1a2e"
-    BG_MEDIUM = "#16213e"
-    BG_LIGHT = "#0f3460"
-    ACCENT_PRIMARY = "#00d4ff"
-    ACCENT_SECONDARY = "#7c4dff"
-    ACCENT_SUCCESS = "#00ff88"
-    ACCENT_WARNING = "#ffd700"
-    ACCENT_ERROR = "#ff4444"
-    TEXT_PRIMARY = "#ffffff"
-    TEXT_SECONDARY = "#b0b0b0"
-    TEXT_MUTED = "#666666"
+    """Professional color scheme for the control panel - Black and white aesthetic."""
+    # Black and white theme inspired by underground/doxbin aesthetics
+    BG_DARK = "#000000"          # Pure black
+    BG_MEDIUM = "#0a0a0a"        # Nearly black
+    BG_LIGHT = "#1a1a1a"         # Dark grey
+    ACCENT_PRIMARY = "#ffffff"   # Pure white
+    ACCENT_SECONDARY = "#cccccc" # Light grey
+    ACCENT_SUCCESS = "#ffffff"   # White
+    ACCENT_WARNING = "#cccccc"   # Light grey
+    ACCENT_ERROR = "#ffffff"     # White
+    TEXT_PRIMARY = "#ffffff"     # Pure white
+    TEXT_SECONDARY = "#b0b0b0"   # Medium grey
+    TEXT_MUTED = "#666666"       # Dark grey
     
-    # Button colors
-    BTN_PRIMARY = "#00d4ff"
-    BTN_SUCCESS = "#00ff88"
-    BTN_DANGER = "#ff4444"
-    BTN_WARNING = "#ffd700"
+    # Button colors with monochrome aesthetic
+    BTN_PRIMARY = "#ffffff"      # White
+    BTN_SUCCESS = "#ffffff"      # White
+    BTN_DANGER = "#ffffff"       # White
+    BTN_WARNING = "#ffffff"      # White
 
 
 class LogHandler(logging.Handler):
@@ -62,7 +62,7 @@ class AuthControlPanel:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("Auth RestoreCord Control Panel")
+        self.root.title("◈ Auth RestoreCord Control ◈")
         self.root.geometry("1400x900")
         self.root.configure(bg=ColorScheme.BG_DARK)
         
@@ -125,34 +125,83 @@ class AuthControlPanel:
         header = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
         header.pack(fill=tk.X, pady=(0, 10))
         
-        # Title with gradient effect (using unicode blocks)
+        # Super detailed ASCII art crypto cat
+        crypto_cat = """
+                       _.._
+                     .'    '.
+                    /   __   \\
+                   |   /  \\   |
+                   |   \\__/   |     ₿  Ξ
+                  /\\          /\\
+                 /  '.______.'  \\
+                /    /|    |\\    \\
+               |    | |    | |    |
+               |    |_|    |_|    |
+               |   /   \\  /   \\   |
+               |  /     \\/     \\  |
+              /__/      ||      \\__\\
+             /   \\      ||      /   \\
+            /     \\     ||     /     \\
+           /  ⚡   \\    ||    /  ₿   \\
+          /__      \\   ||   /      __\\
+             \\_    /\\  ||  /\\    _/
+               \\__/  \\_||_/  \\__/
+                     crypto
+                   anarchist
+        """
+        cat_label = tk.Label(header,
+                            text=crypto_cat,
+                            font=("Courier New", 7),
+                            fg=ColorScheme.TEXT_SECONDARY,
+                            bg=ColorScheme.BG_MEDIUM,
+                            justify=tk.CENTER)
+        cat_label.pack(pady=(5, 5))
+        
+        # Main title with aesthetic styling
         title = tk.Label(header, 
-                        text="⚡ Auth RestoreCord Control Panel",
-                        font=("Segoe UI", 24, "bold"),
+                        text="◈ Auth RestoreCord Control ◈",
+                        font=("Courier New", 24, "bold"),
                         fg=ColorScheme.ACCENT_PRIMARY,
                         bg=ColorScheme.BG_MEDIUM,
-                        pady=15)
+                        pady=5)
         title.pack()
         
-        # Subtitle
+        # Decorative line
+        line1 = tk.Label(header,
+                        text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                        font=("Courier New", 8),
+                        fg=ColorScheme.ACCENT_SECONDARY,
+                        bg=ColorScheme.BG_MEDIUM)
+        line1.pack()
+        
+        # Subtitle with niche aesthetic
         subtitle = tk.Label(header,
-                           text="Real-time configuration & monitoring",
-                           font=("Segoe UI", 11),
+                           text="[ Real-time Configuration & Monitoring ]",
+                           font=("Courier New", 11),
                            fg=ColorScheme.TEXT_SECONDARY,
                            bg=ColorScheme.BG_MEDIUM,
                            pady=5)
         subtitle.pack()
+        
+        # Bottom decorative element
+        cat_art = tk.Label(header,
+                          text="▲ crypto secured ▲",
+                          font=("Courier New", 8),
+                          fg=ColorScheme.TEXT_MUTED,
+                          bg=ColorScheme.BG_MEDIUM,
+                          pady=8)
+        cat_art.pack()
         
     def create_control_section(self, parent):
         """Create the control buttons section."""
         control_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
         control_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
         
-        # Section title
+        # Section title with aesthetic brackets
         title = tk.Label(control_frame,
-                        text="● BOT CONTROLS",
-                        font=("Segoe UI", 12, "bold"),
-                        fg=ColorScheme.TEXT_PRIMARY,
+                        text="[ BOT CONTROLS ]",
+                        font=("Courier New", 12, "bold"),
+                        fg=ColorScheme.ACCENT_PRIMARY,
                         bg=ColorScheme.BG_MEDIUM,
                         anchor=tk.W,
                         pady=10,
@@ -164,15 +213,15 @@ class AuthControlPanel:
         status_container.pack(fill=tk.X, padx=15, pady=(0, 10))
         
         tk.Label(status_container,
-                text="Status:",
-                font=("Segoe UI", 10),
+                text=">> Status:",
+                font=("Courier New", 10),
                 fg=ColorScheme.TEXT_SECONDARY,
                 bg=ColorScheme.BG_MEDIUM).pack(side=tk.LEFT, padx=(0, 10))
         
         self.status_label = tk.Label(status_container,
-                                     text="● STOPPED",
-                                     font=("Segoe UI", 10, "bold"),
-                                     fg=ColorScheme.ACCENT_ERROR,
+                                     text="◆ OFFLINE",
+                                     font=("Courier New", 10, "bold"),
+                                     fg=ColorScheme.TEXT_SECONDARY,
                                      bg=ColorScheme.BG_MEDIUM)
         self.status_label.pack(side=tk.LEFT)
         
@@ -180,13 +229,13 @@ class AuthControlPanel:
         btn_container = tk.Frame(control_frame, bg=ColorScheme.BG_MEDIUM)
         btn_container.pack(fill=tk.X, padx=15, pady=(0, 15))
         
-        # Start button
+        # Start button with monochrome aesthetic
         self.start_btn = tk.Button(btn_container,
-                                   text="▶ START BOT",
-                                   font=("Segoe UI", 11, "bold"),
+                                   text="[ ▶ START ]",
+                                   font=("Courier New", 11, "bold"),
                                    fg=ColorScheme.BG_DARK,
                                    bg=ColorScheme.ACCENT_SUCCESS,
-                                   activebackground="#00cc77",
+                                   activebackground="#cccccc",
                                    relief=tk.FLAT,
                                    cursor="hand2",
                                    padx=20,
@@ -194,13 +243,13 @@ class AuthControlPanel:
                                    command=self.start_bot)
         self.start_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         
-        # Stop button
+        # Stop button with monochrome aesthetic
         self.stop_btn = tk.Button(btn_container,
-                                  text="■ STOP BOT",
-                                  font=("Segoe UI", 11, "bold"),
-                                  fg=ColorScheme.TEXT_PRIMARY,
-                                  bg=ColorScheme.ACCENT_ERROR,
-                                  activebackground="#cc0000",
+                                  text="[ ■ STOP ]",
+                                  font=("Courier New", 11, "bold"),
+                                  fg=ColorScheme.BG_DARK,
+                                  bg=ColorScheme.TEXT_SECONDARY,
+                                  activebackground="#999999",
                                   relief=tk.FLAT,
                                   cursor="hand2",
                                   padx=20,
@@ -209,13 +258,13 @@ class AuthControlPanel:
                                   command=self.stop_bot)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         
-        # Reload config button
+        # Reload config button with monochrome aesthetic
         reload_btn = tk.Button(btn_container,
-                              text="⟳ RELOAD",
-                              font=("Segoe UI", 11, "bold"),
-                              fg=ColorScheme.TEXT_PRIMARY,
-                              bg=ColorScheme.ACCENT_WARNING,
-                              activebackground="#ddb800",
+                              text="[ ⟳ RELOAD ]",
+                              font=("Courier New", 11, "bold"),
+                              fg=ColorScheme.BG_DARK,
+                              bg=ColorScheme.TEXT_SECONDARY,
+                              activebackground="#999999",
                               relief=tk.FLAT,
                               cursor="hand2",
                               padx=20,
@@ -233,19 +282,19 @@ class AuthControlPanel:
         title_container.pack(fill=tk.X, pady=10, padx=15)
         
         tk.Label(title_container,
-                text="● CONFIGURATION",
-                font=("Segoe UI", 12, "bold"),
-                fg=ColorScheme.TEXT_PRIMARY,
+                text="[ CONFIGURATION ]",
+                font=("Courier New", 12, "bold"),
+                fg=ColorScheme.ACCENT_PRIMARY,
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Save button in title
+        # Save button in title with monochrome aesthetic
         save_btn = tk.Button(title_container,
-                            text="💾 SAVE & APPLY",
-                            font=("Segoe UI", 9, "bold"),
+                            text="[ 💾 SAVE ]",
+                            font=("Courier New", 9, "bold"),
                             fg=ColorScheme.BG_DARK,
                             bg=ColorScheme.ACCENT_PRIMARY,
-                            activebackground="#00b8dd",
+                            activebackground="#cccccc",
                             relief=tk.FLAT,
                             cursor="hand2",
                             padx=15,
@@ -286,6 +335,11 @@ class AuthControlPanel:
                 ("RESTORECORD_SERVER_ID", "RestoreCord Server ID", False),
                 ("RESTORECORD_API_KEY", "API Key (optional)", True),
             ]),
+            ("Message Forwarding Configuration", [
+                ("FORWARD_SOURCE_CHANNEL_ID", "Source Channel ID (for forwarding)", False),
+                ("FORWARD_AUTH_MESSAGE_ID", "Auth Message ID (to forward)", False),
+                ("FORWARD_AUTH_ADDITIONAL_TEXT", "Additional Text (with forwarded message)", False),
+            ]),
             ("Application Requirements", [
                 ("REQUIRE_ADD_PEOPLE", "Require Adding People (True/False)", False),
                 ("REQUIRED_PEOPLE_COUNT", "Number of People to Add", False),
@@ -300,13 +354,13 @@ class AuthControlPanel:
         ]
         
         for section_title, fields in configs:
-            # Section header
+            # Section header with aesthetic styling
             section_header = tk.Frame(parent, bg=ColorScheme.BG_LIGHT, relief=tk.RIDGE, bd=1)
             section_header.pack(fill=tk.X, pady=(10, 5))
             
             tk.Label(section_header,
-                    text=f"▸ {section_title}",
-                    font=("Segoe UI", 10, "bold"),
+                    text=f">> {section_title}",
+                    font=("Courier New", 10, "bold"),
                     fg=ColorScheme.ACCENT_SECONDARY,
                     bg=ColorScheme.BG_LIGHT,
                     anchor=tk.W,
@@ -321,7 +375,7 @@ class AuthControlPanel:
                 # Label
                 label = tk.Label(field_frame,
                                text=label_text,
-                               font=("Segoe UI", 9),
+                               font=("Courier New", 9),
                                fg=ColorScheme.TEXT_SECONDARY,
                                bg=ColorScheme.BG_MEDIUM,
                                anchor=tk.W)
@@ -329,7 +383,7 @@ class AuthControlPanel:
                 
                 # Entry field
                 entry = tk.Entry(field_frame,
-                               font=("Segoe UI", 10),
+                               font=("Courier New", 10),
                                fg=ColorScheme.TEXT_PRIMARY,
                                bg=ColorScheme.BG_DARK,
                                insertbackground=ColorScheme.ACCENT_PRIMARY,
@@ -350,19 +404,19 @@ class AuthControlPanel:
         title_container.pack(fill=tk.X, pady=10, padx=15)
         
         tk.Label(title_container,
-                text="● LIVE LOGS",
-                font=("Segoe UI", 12, "bold"),
-                fg=ColorScheme.TEXT_PRIMARY,
+                text="[ LIVE LOGS ]",
+                font=("Courier New", 12, "bold"),
+                fg=ColorScheme.ACCENT_PRIMARY,
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Clear button
+        # Clear button with monochrome aesthetic
         clear_btn = tk.Button(title_container,
-                             text="🗑 CLEAR",
-                             font=("Segoe UI", 9, "bold"),
-                             fg=ColorScheme.TEXT_PRIMARY,
-                             bg=ColorScheme.ACCENT_ERROR,
-                             activebackground="#cc0000",
+                             text="[ 🗑 CLEAR ]",
+                             font=("Courier New", 9, "bold"),
+                             fg=ColorScheme.BG_DARK,
+                             bg=ColorScheme.TEXT_SECONDARY,
+                             activebackground="#999999",
                              relief=tk.FLAT,
                              cursor="hand2",
                              padx=15,
@@ -373,7 +427,7 @@ class AuthControlPanel:
         # Log text area
         self.log_text = scrolledtext.ScrolledText(
             log_frame,
-            font=("Consolas", 9),
+            font=("Courier New", 9),
             fg=ColorScheme.TEXT_PRIMARY,
             bg=ColorScheme.BG_DARK,
             insertbackground=ColorScheme.ACCENT_PRIMARY,
@@ -383,11 +437,11 @@ class AuthControlPanel:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
         
-        # Configure log text tags for colored output
+        # Configure log text tags for colored output with monochrome colors
         self.log_text.tag_config("INFO", foreground=ColorScheme.ACCENT_PRIMARY)
-        self.log_text.tag_config("WARNING", foreground=ColorScheme.ACCENT_WARNING)
-        self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_ERROR)
-        self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_SUCCESS)
+        self.log_text.tag_config("WARNING", foreground=ColorScheme.TEXT_SECONDARY)
+        self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_PRIMARY)
+        self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_PRIMARY)
         
     def load_config(self):
         """Load current configuration into the UI."""
@@ -405,6 +459,9 @@ class AuthControlPanel:
                 "RESTORECORD_URL": getattr(config_module, "RESTORECORD_URL", ""),
                 "RESTORECORD_SERVER_ID": getattr(config_module, "RESTORECORD_SERVER_ID", ""),
                 "RESTORECORD_API_KEY": getattr(config_module, "RESTORECORD_API_KEY", ""),
+                "FORWARD_SOURCE_CHANNEL_ID": getattr(config_module, "FORWARD_SOURCE_CHANNEL_ID", ""),
+                "FORWARD_AUTH_MESSAGE_ID": getattr(config_module, "FORWARD_AUTH_MESSAGE_ID", ""),
+                "FORWARD_AUTH_ADDITIONAL_TEXT": getattr(config_module, "FORWARD_AUTH_ADDITIONAL_TEXT", ""),
                 "REQUIRE_ADD_PEOPLE": str(getattr(config_module, "REQUIRE_ADD_PEOPLE", True)),
                 "REQUIRED_PEOPLE_COUNT": str(getattr(config_module, "REQUIRED_PEOPLE_COUNT", 2)),
                 "MAIN_SERVER_INVITE": getattr(config_module, "MAIN_SERVER_INVITE", ""),
@@ -425,7 +482,10 @@ class AuthControlPanel:
     def save_config(self):
         """Save configuration changes to the config file."""
         try:
-            config_path = "/home/runner/work/boss/boss/auth_restorecore_config.py"
+            # Use relative path from current file location
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(current_dir, "auth_restorecore_config.py")
             
             # Read current config file
             with open(config_path, 'r') as f:
@@ -476,7 +536,7 @@ class AuthControlPanel:
             
         try:
             self.bot_running = True
-            self.update_status("RUNNING", ColorScheme.ACCENT_SUCCESS)
+            self.update_status("ONLINE", ColorScheme.ACCENT_PRIMARY)
             
             self.start_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.NORMAL)
@@ -504,7 +564,7 @@ class AuthControlPanel:
             
         try:
             self.bot_running = False
-            self.update_status("STOPPED", ColorScheme.ACCENT_ERROR)
+            self.update_status("OFFLINE", ColorScheme.TEXT_SECONDARY)
             
             self.start_btn.config(state=tk.NORMAL)
             self.stop_btn.config(state=tk.DISABLED)
@@ -517,7 +577,7 @@ class AuthControlPanel:
             
     def update_status(self, status_text, color):
         """Update the status indicator."""
-        self.status_label.config(text=f"● {status_text}", fg=color)
+        self.status_label.config(text=f"◆ {status_text}", fg=color)
         
     def add_log(self, message, tag="INFO"):
         """Add a log message to the log viewer."""
