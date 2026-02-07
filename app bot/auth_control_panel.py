@@ -212,11 +212,11 @@ class AuthControlPanel:
 .*%%%%%%%###=..............:#-...           ..........................:.::::::..::::::::...........:-::::..................:-=-::::-:..
 """
         
-        # Create a label for the background ASCII with dark red faded color
+        # Create a label for the background ASCII with visible but subtle grey color
         bg_ascii_label = tk.Label(self.root,
                                   text=background_ascii,
-                                  font=("Courier New", 5),  # Smaller font for background
-                                  fg="#330000",  # Dark red, very faded
+                                  font=("Courier New", 7),  # Readable font for background
+                                  fg="#404040",  # Medium grey - visible but subtle on black background
                                   bg=ColorScheme.BG_DARK,
                                   justify=tk.CENTER)
         # Place it in the center background
