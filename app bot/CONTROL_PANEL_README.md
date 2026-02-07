@@ -26,10 +26,11 @@ A modern, sleek graphical user interface for managing the Auth RestoreCord bot w
 - **Clear Function** - Clean up old logs
 
 ### 🎨 Professional Design
-- **Dark Theme** - Easy on the eyes
-- **Modern Colors** - Cyan, purple, and accent colors
-- **Clean Layout** - 60/40 split (controls/logs)
-- **Smooth Experience** - No corny emojis, just professional icons
+- **Dark Aesthetic Theme** - Underground/niche style with deep blacks and neon accents
+- **Neon Colors** - Hot pink, electric purple, neon green, electric yellow
+- **Monospace Font** - Courier New for that terminal/hacker aesthetic
+- **ASCII Elements** - Decorative brackets and symbols
+- **Smooth Experience** - Clean, edgy design inspired by underground aesthetics
 
 ## 🚀 Usage
 
@@ -56,14 +57,19 @@ The control panel organizes settings into logical groups:
 - **Server ID** - RestoreCord server
 - **API Key** - Optional API key
 
-#### 3. Application Requirements
+#### 3. Message Forwarding Configuration
+- **Source Channel ID** - Channel where template messages are stored
+- **Auth Message ID** - ID of message to forward for verification
+- **Additional Text** - Extra text to send with forwarded message
+
+#### 4. Application Requirements
 - **Require Add People** - Enable/disable people requirement
 - **Required Count** - How many people to add
 
-#### 4. Server Configuration
+#### 5. Server Configuration
 - **Main Server Invite** - Link for added users
 
-#### 5. Timing Settings
+#### 6. Timing Settings
 - **Channel Creation Wait** - Delay for channel creation
 - **Auth Check Interval** - How often to check status
 
@@ -71,8 +77,8 @@ The control panel organizes settings into logical groups:
 
 1. **Launch** - Run `python3 auth_control_panel.py`
 2. **Edit Config** - Click any field and type new values
-3. **Save** - Click "💾 SAVE & APPLY" to apply changes
-4. **Start Bot** - Click "▶ START BOT" to begin monitoring
+3. **Save** - Click "[ 💾 SAVE ]" to apply changes
+4. **Start Bot** - Click "[ ▶ START ]" to begin monitoring
 5. **Watch Logs** - View real-time activity in the right panel
 6. **Stop Bot** - Click "■ STOP BOT" when done
 
@@ -86,15 +92,15 @@ The control panel organizes settings into logical groups:
 
 ## 🎨 Color Scheme
 
-The control panel uses a professional color palette:
+The control panel uses a dark aesthetic neon palette:
 
-- **Background**: Dark navy (#1a1a2e, #16213e)
-- **Primary Accent**: Cyan (#00d4ff)
-- **Secondary Accent**: Purple (#7c4dff)
-- **Success**: Green (#00ff88)
-- **Warning**: Gold (#ffd700)
-- **Error**: Red (#ff4444)
-- **Text**: White/Gray for readability
+- **Background**: Deep blacks (#0a0a0f, #12121a, #1a1a27)
+- **Primary Accent**: Hot Pink (#ff006e)
+- **Secondary Accent**: Electric Purple (#8338ec)
+- **Success**: Neon Green (#06ffa5)
+- **Warning**: Electric Yellow (#ffbe0b)
+- **Error**: Hot Pink (#ff006e)
+- **Text**: Soft purple-white tones for readability
 
 ## 📋 Requirements
 
@@ -111,28 +117,30 @@ brew install python-tk@3.9       # macOS
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                ⚡ Auth RestoreCord Control Panel            │
-│              Real-time configuration & monitoring            │
+│           ◈ Auth RestoreCord Control ◈                      │
+│       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━               │
+│       [ Real-time Configuration & Monitoring ]               │
+│       ▲ unauthorized access logged ▲                         │
 ├──────────────────────────────────┬──────────────────────────┤
 │                                  │                          │
-│  ● BOT CONTROLS                  │   ● LIVE LOGS            │
-│  Status: ● RUNNING               │                          │
+│  [ BOT CONTROLS ]                │   [ LIVE LOGS ]          │
+│  >> Status: ◆ OFFLINE            │                          │
 │  [▶ START] [■ STOP] [⟳ RELOAD]  │   [12:34:56] Started...  │
 │                                  │   [12:34:57] Checking... │
-│  ● CONFIGURATION                 │   [12:34:58] User...     │
-│  [💾 SAVE & APPLY]               │   [12:34:59] Approved... │
+│  [ CONFIGURATION ]               │   [12:34:58] User...     │
+│  [💾 SAVE]                       │   [12:34:59] Approved... │
 │                                  │                          │
-│  ▸ Discord Configuration         │   [12:35:00] Logs...     │
+│  >> Discord Configuration        │   [12:35:00] Logs...     │
 │    Token: ●●●●●●●●●●●           │   [12:35:01] Continue... │
 │    Guild ID: 1234567890          │   [12:35:02] Running...  │
 │    ...                           │                          │
 │                                  │   [🗑 CLEAR]             │
-│  ▸ RestoreCord Settings          │                          │
+│  >> RestoreCord Settings         │                          │
 │    URL: https://...              │                          │
 │    ...                           │                          │
 │                                  │                          │
-│  ▸ Application Requirements      │                          │
-│    Require Add People: True      │                          │
+│  >> Message Forwarding Config    │                          │
+│    Source Channel ID: ...        │                          │
 │    ...                           │                          │
 │                                  │                          │
 └──────────────────────────────────┴──────────────────────────┘
