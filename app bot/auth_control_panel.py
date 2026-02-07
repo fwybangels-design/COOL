@@ -50,8 +50,8 @@ class ColorScheme:
     HOVER_LIGHT = "#e0e0e0"      # Light hover
     HOVER_MEDIUM = "#999999"     # Medium hover
     
-    # ASCII art text color (very subtle, doesn't interfere with logs)
-    ASCII_TEXT = "#1a1a1a"       # Dark grey for ASCII art text
+    # ASCII art text color (subtle background, doesn't interfere with logs)
+    ASCII_TEXT = "#3a3a3a"       # Subtle grey for ASCII art text background
 
 
 class ASCIIArtConfig:
