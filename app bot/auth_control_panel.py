@@ -321,13 +321,17 @@ class AuthControlPanel:
         # Clear any existing ASCII art watermark
         try:
             self.log_text.delete("ascii_start", "ascii_end")
-        except:
+        except tk.TclError:
+            # Marks don't exist yet, that's fine
             pass
         
         # Insert ASCII art at the beginning with a special tag
         self.log_text.insert("1.0", self.custom_ascii_art + "\n\n", "ascii_watermark")
+        # Set marks to track the watermark region
         self.log_text.mark_set("ascii_start", "1.0")
-        self.log_text.mark_set("ascii_end", f"1.0 + {len(self.custom_ascii_art) + 2}c")
+        # Count actual lines in the ASCII art to set the end mark correctly
+        ascii_lines = self.custom_ascii_art.count('\n') + 2  # +2 for the two newlines we added
+        self.log_text.mark_set("ascii_end", f"{ascii_lines + 1}.0")
         self.log_text.mark_gravity("ascii_start", tk.LEFT)
         self.log_text.mark_gravity("ascii_end", tk.LEFT)
         
@@ -871,7 +875,7 @@ class AuthControlPanel:
         # Delete everything except the ASCII art watermark
         try:
             self.log_text.delete("ascii_end", tk.END)
-        except:
+        except tk.TclError:
             # If marks don't exist, just clear everything and re-add ASCII art
             self.log_text.delete(1.0, tk.END)
             self.create_background_ascii_in_text_widget()
