@@ -24,12 +24,14 @@ A modern, sleek graphical user interface for managing the Auth RestoreCord bot w
 - **Color-Coded Messages** - Info, Warning, Error, Success
 - **Side Panel Layout** - Logs don't interfere with controls
 - **Clear Function** - Clean up old logs
+- **Fixed ASCII Background** - ASCII art stays in place while logs scroll
 
 ### 🎨 Professional Design
 - **Black and White Theme** - Pure monochrome aesthetic inspired by underground/doxbin style
 - **Monochrome Palette** - Pure blacks and whites with grey accents for maximum contrast
 - **Monospace Font** - Courier New for that terminal/hacker aesthetic
-- **ASCII Art** - Super detailed crypto anarchist cat with Bitcoin symbols
+- **ASCII Art Background** - Super detailed crypto anarchist cat with Bitcoin symbols as a fixed background
+- **Auto-Scaling ASCII** - ASCII art automatically adjusts to fit the logs panel size
 - **ASCII Elements** - Decorative brackets and symbols throughout
 - **Clean Experience** - Minimalist, edgy design with no color distractions
 
@@ -90,6 +92,7 @@ The control panel organizes settings into logical groups:
 - ✅ Status indicator shows current state
 - ✅ Click "⟳ RELOAD" to refresh from file
 - ✅ Click "🗑 CLEAR" to clear old logs
+- ✅ Click "✏" to customize ASCII art background - it will auto-scale to fit
 
 ## 🎨 Color Scheme
 
@@ -177,6 +180,8 @@ brew install python-tk@3.9       # macOS
 - **Thread-safe**: Proper locking for config access
 - **Error handling**: Try-catch blocks with user feedback
 - **Clean shutdown**: Proper thread termination
+- **Fixed ASCII Background**: Canvas-based background layer with auto-scaling
+- **Responsive Design**: ASCII art automatically adjusts when window is resized
 
 ### File Structure
 

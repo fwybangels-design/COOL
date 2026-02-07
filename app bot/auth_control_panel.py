@@ -49,6 +49,35 @@ class ColorScheme:
     # Hover colors
     HOVER_LIGHT = "#e0e0e0"      # Light hover
     HOVER_MEDIUM = "#999999"     # Medium hover
+    
+    # ASCII art text color (very subtle, doesn't interfere with logs)
+    ASCII_TEXT = "#1a1a1a"       # Dark grey for ASCII art text
+
+
+class ASCIIArtConfig:
+    """Configuration constants for ASCII art rendering."""
+    # Default canvas dimensions when not yet rendered
+    DEFAULT_CANVAS_WIDTH = 600
+    DEFAULT_CANVAS_HEIGHT = 600
+    
+    # Font size constraints for ASCII art
+    MIN_FONT_SIZE = 4            # Minimum readable size
+    MAX_FONT_SIZE = 12           # Maximum size to prevent oversized art
+    
+    # Character aspect ratio for Courier New monospace font
+    # Width is approximately 0.6 times the height
+    COURIER_CHAR_ASPECT_RATIO = 0.6
+    
+    # Canvas usage ratios (0.95 = 95% of canvas, leaving 5% padding)
+    CANVAS_USAGE_RATIO = 0.95    # Percentage of canvas to use for ASCII art
+    
+    # Layout spacing
+    LINE_SPACING = 2             # Additional pixels between lines
+    MIN_VERTICAL_OFFSET = 20     # Minimum padding from top
+    
+    # Rendering delays
+    CANVAS_RENDER_DELAY_MS = 100 # Delay to allow canvas to render before drawing
+    RESIZE_DEBOUNCE_MS = 150     # Debounce delay for resize events to prevent excessive redraws
 
 
 class LogHandler(logging.Handler):
@@ -108,6 +137,9 @@ class AuthControlPanel:
         
         # Custom ASCII art storage
         self.custom_ascii_art = self.load_custom_ascii_art()
+        
+        # Resize debounce timer for ASCII art canvas
+        self.resize_timer = None
         
         # Configure modern button styles
         self.setup_styles()
@@ -311,44 +343,79 @@ class AuthControlPanel:
         cancel_btn.pack(side=tk.LEFT, padx=10)
         
     def create_background_ascii_in_text_widget(self):
-        """Insert ASCII art as background watermark in the log text widget."""
-        if not hasattr(self, 'log_text') or not self.log_text:
+        """Create ASCII art as a fixed background on canvas behind the log text widget."""
+        if not hasattr(self, 'ascii_canvas') or not self.ascii_canvas:
             return
-            
-        # Enable editing temporarily
-        self.log_text.config(state=tk.NORMAL)
         
-        # Clear any existing ASCII art watermark
-        try:
-            self.log_text.delete("ascii_start", "ascii_end")
-        except tk.TclError:
-            # Marks don't exist yet, that's fine
-            pass
+        # Clear existing canvas content
+        self.ascii_canvas.delete("all")
         
-        # Insert ASCII art at the beginning with a special tag
-        self.log_text.insert("1.0", self.custom_ascii_art + "\n\n", "ascii_watermark")
-        # Set marks to track the watermark region
-        self.log_text.mark_set("ascii_start", "1.0")
-        # Count actual lines in the ASCII art to set the end mark correctly
-        # Using splitlines() to properly handle any existing newlines
-        ascii_lines = len(self.custom_ascii_art.splitlines()) + 2  # +2 for the two newlines we added
-        self.log_text.mark_set("ascii_end", f"{ascii_lines}.0")
-        self.log_text.mark_gravity("ascii_start", tk.LEFT)
-        self.log_text.mark_gravity("ascii_end", tk.LEFT)
+        # Get canvas dimensions
+        canvas_width = self.ascii_canvas.winfo_width()
+        canvas_height = self.ascii_canvas.winfo_height()
         
-        # Configure the watermark tag to be very faded
-        self.log_text.tag_config("ascii_watermark", 
-                                foreground="#2a2a2a",  # Subtle dark grey, visible but faded
-                                font=("Courier New", 7))
-        # Make the watermark tag have lowest priority so logs appear on top
-        self.log_text.tag_lower("ascii_watermark")
+        # If canvas hasn't been rendered yet, use default dimensions
+        if canvas_width <= 1:
+            canvas_width = ASCIIArtConfig.DEFAULT_CANVAS_WIDTH
+        if canvas_height <= 1:
+            canvas_height = ASCIIArtConfig.DEFAULT_CANVAS_HEIGHT
         
-        # Disable editing again
-        self.log_text.config(state=tk.DISABLED)
+        # Split ASCII art into lines
+        ascii_lines = self.custom_ascii_art.splitlines()
+        if not ascii_lines:
+            return
+        
+        # Calculate dimensions for scaling - ensure minimum of 1 to prevent division by zero
+        max_line_length = max((len(line) for line in ascii_lines), default=1)
+        num_lines = len(ascii_lines)
+        
+        # Calculate font size to fit the ASCII art in the canvas
+        # Use a monospace font size that fits both width and height
+        font_size_width = int((canvas_width * ASCIIArtConfig.CANVAS_USAGE_RATIO) / 
+                             (max_line_length * ASCIIArtConfig.COURIER_CHAR_ASPECT_RATIO))
+        
+        # Calculate max font size based on height
+        font_size_height = int((canvas_height * ASCIIArtConfig.CANVAS_USAGE_RATIO) / num_lines)
+        
+        # Use the smaller of the two to ensure it fits
+        font_size = max(ASCIIArtConfig.MIN_FONT_SIZE, 
+                       min(font_size_width, font_size_height, ASCIIArtConfig.MAX_FONT_SIZE))
+        
+        # Calculate total height and width with the chosen font size
+        line_height = font_size + ASCIIArtConfig.LINE_SPACING
+        total_height = num_lines * line_height
+        
+        # Center the ASCII art vertically
+        start_y = max(ASCIIArtConfig.MIN_VERTICAL_OFFSET, (canvas_height - total_height) // 2)
+        
+        # Draw each line of ASCII art on the canvas
+        for i, line in enumerate(ascii_lines):
+            y_pos = start_y + (i * line_height)
+            # Center horizontally
+            self.ascii_canvas.create_text(
+                canvas_width // 2,
+                y_pos,
+                text=line,
+                font=("Courier New", font_size),
+                fill=ColorScheme.ASCII_TEXT,
+                anchor="center"
+            )
     
     def refresh_ascii_art(self):
         """Refresh the ASCII art display with the current custom art."""
         self.create_background_ascii_in_text_widget()
+    
+    def on_canvas_resize(self, event):
+        """Handle canvas resize with debouncing to prevent excessive redraws."""
+        # Cancel any pending resize timer
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+        
+        # Schedule a new redraw after the debounce delay
+        self.resize_timer = self.root.after(
+            ASCIIArtConfig.RESIZE_DEBOUNCE_MS,
+            self.create_background_ascii_in_text_widget
+        )
         
     def create_ui(self):
         """Create the main UI layout."""
@@ -683,9 +750,21 @@ class AuthControlPanel:
         clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg=ColorScheme.HOVER_MEDIUM))
         clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg=ColorScheme.TEXT_SECONDARY))
         
-        # Log text area
+        # Create a container frame for the canvas and text widget
+        log_container = tk.Frame(log_frame, bg=ColorScheme.BG_DARK)
+        log_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        
+        # Create a canvas for the ASCII art background (behind the text)
+        self.ascii_canvas = tk.Canvas(
+            log_container,
+            bg=ColorScheme.BG_DARK,
+            highlightthickness=0
+        )
+        self.ascii_canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
+        
+        # Log text area - on top of canvas with transparent background effect
         self.log_text = scrolledtext.ScrolledText(
-            log_frame,
+            log_container,
             font=("Courier New", 9),
             fg=ColorScheme.TEXT_PRIMARY,
             bg=ColorScheme.BG_DARK,
@@ -694,7 +773,7 @@ class AuthControlPanel:
             wrap=tk.WORD,
             state=tk.DISABLED
         )
-        self.log_text.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+        self.log_text.place(relx=0, rely=0, relwidth=1, relheight=1)
         
         # Configure log text tags for colored output with monochrome colors
         self.log_text.tag_config("INFO", foreground=ColorScheme.ACCENT_PRIMARY)
@@ -702,8 +781,11 @@ class AuthControlPanel:
         self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_PRIMARY)
         self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_PRIMARY)
         
-        # Add ASCII art as background watermark inside the text widget
-        self.create_background_ascii_in_text_widget()
+        # Bind canvas resize event to redraw ASCII art with debouncing
+        self.ascii_canvas.bind("<Configure>", self.on_canvas_resize)
+        
+        # Initial ASCII art rendering (delayed to allow canvas to render)
+        self.root.after(ASCIIArtConfig.CANVAS_RENDER_DELAY_MS, self.create_background_ascii_in_text_widget)
         
     def load_config(self):
         """Load current configuration into the UI."""
@@ -871,17 +953,10 @@ class AuthControlPanel:
         self.root.after(100, self.update_logs)
         
     def clear_logs(self):
-        """Clear all logs from the viewer, preserving the ASCII art watermark."""
+        """Clear all logs from the viewer."""
         self.log_text.config(state=tk.NORMAL)
-        # Delete everything except the ASCII art watermark
-        try:
-            self.log_text.delete("ascii_end", tk.END)
-            self.log_text.config(state=tk.DISABLED)
-        except tk.TclError:
-            # If marks don't exist, just clear everything and re-add ASCII art
-            self.log_text.delete("1.0", tk.END)
-            # create_background_ascii_in_text_widget will handle enabling/disabling
-            self.create_background_ascii_in_text_widget()
+        self.log_text.delete("1.0", tk.END)
+        self.log_text.config(state=tk.DISABLED)
         self.add_log("Logs cleared", "INFO")
     
     def on_closing(self):
