@@ -49,6 +49,31 @@ class ColorScheme:
     # Hover colors
     HOVER_LIGHT = "#e0e0e0"      # Light hover
     HOVER_MEDIUM = "#999999"     # Medium hover
+    
+    # ASCII art background color (very subtle, doesn't interfere with logs)
+    ASCII_BG = "#1a1a1a"         # Dark grey background
+
+
+class ASCIIArtConfig:
+    """Configuration constants for ASCII art rendering."""
+    # Default canvas dimensions when not yet rendered
+    DEFAULT_CANVAS_WIDTH = 600
+    DEFAULT_CANVAS_HEIGHT = 600
+    
+    # Font size constraints for ASCII art
+    MIN_FONT_SIZE = 4            # Minimum readable size
+    MAX_FONT_SIZE = 12           # Maximum size to prevent oversized art
+    
+    # Character aspect ratio for Courier New monospace font
+    # Width is approximately 0.6 times the height
+    COURIER_CHAR_ASPECT_RATIO = 0.6
+    
+    # Layout spacing
+    LINE_SPACING = 2             # Additional pixels between lines
+    MIN_VERTICAL_OFFSET = 20     # Minimum padding from top
+    
+    # Rendering delays
+    CANVAS_RENDER_DELAY_MS = 100 # Delay to allow canvas to render before drawing
 
 
 class LogHandler(logging.Handler):
@@ -324,9 +349,9 @@ class AuthControlPanel:
         
         # If canvas hasn't been rendered yet, use default dimensions
         if canvas_width <= 1:
-            canvas_width = 600
+            canvas_width = ASCIIArtConfig.DEFAULT_CANVAS_WIDTH
         if canvas_height <= 1:
-            canvas_height = 600
+            canvas_height = ASCIIArtConfig.DEFAULT_CANVAS_HEIGHT
         
         # Split ASCII art into lines
         ascii_lines = self.custom_ascii_art.splitlines()
@@ -339,24 +364,22 @@ class AuthControlPanel:
         
         # Calculate font size to fit the ASCII art in the canvas
         # Use a monospace font size that fits both width and height
-        # Character width/height ratio for Courier is approximately 0.6
-        char_aspect_ratio = 0.6
-        
-        # Calculate max font size based on width
-        font_size_width = int((canvas_width * 0.95) / (max_line_length * char_aspect_ratio))
+        font_size_width = int((canvas_width * 0.95) / 
+                             (max_line_length * ASCIIArtConfig.COURIER_CHAR_ASPECT_RATIO))
         
         # Calculate max font size based on height
         font_size_height = int((canvas_height * 0.95) / num_lines)
         
         # Use the smaller of the two to ensure it fits
-        font_size = max(4, min(font_size_width, font_size_height, 12))  # Min 4, max 12
+        font_size = max(ASCIIArtConfig.MIN_FONT_SIZE, 
+                       min(font_size_width, font_size_height, ASCIIArtConfig.MAX_FONT_SIZE))
         
         # Calculate total height and width with the chosen font size
-        line_height = font_size + 2
+        line_height = font_size + ASCIIArtConfig.LINE_SPACING
         total_height = num_lines * line_height
         
         # Center the ASCII art vertically
-        start_y = max(20, (canvas_height - total_height) // 2)
+        start_y = max(ASCIIArtConfig.MIN_VERTICAL_OFFSET, (canvas_height - total_height) // 2)
         
         # Draw each line of ASCII art on the canvas
         for i, line in enumerate(ascii_lines):
@@ -367,7 +390,7 @@ class AuthControlPanel:
                 y_pos,
                 text=line,
                 font=("Courier New", font_size),
-                fill="#1a1a1a",  # Very dark grey, subtle background
+                fill=ColorScheme.ASCII_BG,
                 anchor="center"
             )
     
@@ -743,7 +766,7 @@ class AuthControlPanel:
         self.ascii_canvas.bind("<Configure>", lambda e: self.create_background_ascii_in_text_widget())
         
         # Initial ASCII art rendering (delayed to allow canvas to render)
-        self.root.after(100, self.create_background_ascii_in_text_widget)
+        self.root.after(ASCIIArtConfig.CANVAS_RENDER_DELAY_MS, self.create_background_ascii_in_text_widget)
         
     def load_config(self):
         """Load current configuration into the UI."""
