@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 import json
 import os
+import importlib
 
 # Import the auth module
 try:
@@ -44,6 +45,10 @@ class ColorScheme:
     BTN_SUCCESS = "#ffffff"      # White
     BTN_DANGER = "#ffffff"       # White
     BTN_WARNING = "#ffffff"      # White
+    
+    # Hover colors
+    HOVER_LIGHT = "#e0e0e0"      # Light hover
+    HOVER_MEDIUM = "#999999"     # Medium hover
 
 
 class LogHandler(logging.Handler):
@@ -105,7 +110,8 @@ class AuthControlPanel:
         
     def create_background_ascii(self):
         """Create the background ASCII art layer."""
-        # Background ASCII art - placed behind everything
+        # Background ASCII art - placed behind everything using place() before pack()
+        # This ensures proper z-order layering with background behind all other widgets
         background_ascii = """
                                                                       ...................                                                                                         
                                                                       ...  ..............                                                                                         
@@ -331,7 +337,7 @@ class AuthControlPanel:
                                    command=self.start_bot)
         self.start_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         # Add hover effect
-        self.start_btn.bind("<Enter>", lambda e: self.start_btn.config(bg="#e0e0e0"))
+        self.start_btn.bind("<Enter>", lambda e: self.start_btn.config(bg=ColorScheme.HOVER_LIGHT))
         self.start_btn.bind("<Leave>", lambda e: self.start_btn.config(bg=ColorScheme.ACCENT_SUCCESS))
         
         # Stop button with smooth modern aesthetic
@@ -350,8 +356,8 @@ class AuthControlPanel:
                                   command=self.stop_bot)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
         # Add hover effect
-        self.stop_btn.bind("<Enter>", lambda e: self.stop_btn.config(bg="#999999") if self.stop_btn['state'] == 'normal' else None)
-        self.stop_btn.bind("<Leave>", lambda e: self.stop_btn.config(bg=ColorScheme.TEXT_SECONDARY) if self.stop_btn['state'] == 'normal' else None)
+        self.stop_btn.bind("<Enter>", lambda e: self.stop_btn.config(bg=ColorScheme.HOVER_MEDIUM) if self.stop_btn.cget('state') == 'normal' else None)
+        self.stop_btn.bind("<Leave>", lambda e: self.stop_btn.config(bg=ColorScheme.TEXT_SECONDARY) if self.stop_btn.cget('state') == 'normal' else None)
         
         # Reload config button with smooth modern aesthetic
         reload_btn = tk.Button(btn_container,
@@ -368,7 +374,7 @@ class AuthControlPanel:
                               command=self.load_config)
         reload_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
         # Add hover effect
-        reload_btn.bind("<Enter>", lambda e: reload_btn.config(bg="#999999"))
+        reload_btn.bind("<Enter>", lambda e: reload_btn.config(bg=ColorScheme.HOVER_MEDIUM))
         reload_btn.bind("<Leave>", lambda e: reload_btn.config(bg=ColorScheme.TEXT_SECONDARY))
         
     def create_config_section(self, parent):
@@ -402,7 +408,7 @@ class AuthControlPanel:
                             command=self.save_config)
         save_btn.pack(side=tk.RIGHT)
         # Add hover effect
-        save_btn.bind("<Enter>", lambda e: save_btn.config(bg="#e0e0e0"))
+        save_btn.bind("<Enter>", lambda e: save_btn.config(bg=ColorScheme.HOVER_LIGHT))
         save_btn.bind("<Leave>", lambda e: save_btn.config(bg=ColorScheme.ACCENT_PRIMARY))
         
         # Scrollable config area
@@ -531,7 +537,7 @@ class AuthControlPanel:
                              command=self.clear_logs)
         clear_btn.pack(side=tk.RIGHT)
         # Add hover effect
-        clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg="#999999"))
+        clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg=ColorScheme.HOVER_MEDIUM))
         clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg=ColorScheme.TEXT_SECONDARY))
         
         # Log text area
@@ -746,7 +752,6 @@ class AuthControlPanel:
         """Save configuration without showing message boxes (for auto-save)."""
         try:
             # Use relative path from current file location
-            import os
             current_dir = os.path.dirname(os.path.abspath(__file__))
             config_path = os.path.join(current_dir, "auth_restorecore_config.py")
             
@@ -781,13 +786,12 @@ class AuthControlPanel:
                 f.writelines(new_lines)
             
             # Reload the module
-            import importlib
             importlib.reload(config_module)
             importlib.reload(auth_module)
             
         except Exception as e:
-            # Silently fail for auto-save
-            pass
+            # Log the error for debugging while failing silently to user
+            logging.error(f"Auto-save failed: {e}")
 
 
 def main():
