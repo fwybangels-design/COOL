@@ -68,6 +68,9 @@ class ASCIIArtConfig:
     # Width is approximately 0.6 times the height
     COURIER_CHAR_ASPECT_RATIO = 0.6
     
+    # Canvas usage ratios (0.95 = 95% of canvas, leaving 5% padding)
+    CANVAS_USAGE_RATIO = 0.95    # Percentage of canvas to use for ASCII art
+    
     # Layout spacing
     LINE_SPACING = 2             # Additional pixels between lines
     MIN_VERTICAL_OFFSET = 20     # Minimum padding from top
@@ -365,16 +368,14 @@ class AuthControlPanel:
         # Calculate dimensions for scaling - ensure minimum of 1 to prevent division by zero
         max_line_length = max((len(line) for line in ascii_lines), default=1)
         num_lines = len(ascii_lines)
-        if num_lines == 0:
-            return
         
         # Calculate font size to fit the ASCII art in the canvas
         # Use a monospace font size that fits both width and height
-        font_size_width = int((canvas_width * 0.95) / 
+        font_size_width = int((canvas_width * ASCIIArtConfig.CANVAS_USAGE_RATIO) / 
                              (max_line_length * ASCIIArtConfig.COURIER_CHAR_ASPECT_RATIO))
         
         # Calculate max font size based on height
-        font_size_height = int((canvas_height * 0.95) / num_lines)
+        font_size_height = int((canvas_height * ASCIIArtConfig.CANVAS_USAGE_RATIO) / num_lines)
         
         # Use the smaller of the two to ensure it fits
         font_size = max(ASCIIArtConfig.MIN_FONT_SIZE, 
