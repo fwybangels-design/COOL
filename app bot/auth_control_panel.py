@@ -482,7 +482,10 @@ class AuthControlPanel:
     def save_config(self):
         """Save configuration changes to the config file."""
         try:
-            config_path = "/home/runner/work/COOL/COOL/app bot/auth_restorecore_config.py"
+            # Use relative path from current file location
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(current_dir, "auth_restorecore_config.py")
             
             # Read current config file
             with open(config_path, 'r') as f:
