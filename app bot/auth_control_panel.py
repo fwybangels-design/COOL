@@ -331,7 +331,7 @@ class AuthControlPanel:
         self.log_text.mark_set("ascii_start", "1.0")
         # Count actual lines in the ASCII art to set the end mark correctly
         ascii_lines = self.custom_ascii_art.count('\n') + 2  # +2 for the two newlines we added
-        self.log_text.mark_set("ascii_end", f"{ascii_lines + 1}.0")
+        self.log_text.mark_set("ascii_end", f"{ascii_lines}.0")
         self.log_text.mark_gravity("ascii_start", tk.LEFT)
         self.log_text.mark_gravity("ascii_end", tk.LEFT)
         
@@ -877,7 +877,7 @@ class AuthControlPanel:
             self.log_text.delete("ascii_end", tk.END)
         except tk.TclError:
             # If marks don't exist, just clear everything and re-add ASCII art
-            self.log_text.delete(1.0, tk.END)
+            self.log_text.delete("1.0", tk.END)
             self.create_background_ascii_in_text_widget()
         self.log_text.config(state=tk.DISABLED)
         self.add_log("Logs cleared", "INFO")
