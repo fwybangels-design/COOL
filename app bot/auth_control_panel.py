@@ -74,6 +74,7 @@ class ASCIIArtConfig:
     
     # Rendering delays
     CANVAS_RENDER_DELAY_MS = 100 # Delay to allow canvas to render before drawing
+    RESIZE_DEBOUNCE_MS = 150     # Debounce delay for resize events to prevent excessive redraws
 
 
 class LogHandler(logging.Handler):
@@ -133,6 +134,9 @@ class AuthControlPanel:
         
         # Custom ASCII art storage
         self.custom_ascii_art = self.load_custom_ascii_art()
+        
+        # Resize debounce timer for ASCII art canvas
+        self.resize_timer = None
         
         # Configure modern button styles
         self.setup_styles()
@@ -358,9 +362,13 @@ class AuthControlPanel:
         if not ascii_lines:
             return
         
-        # Calculate dimensions for scaling
-        max_line_length = max(len(line) for line in ascii_lines) if ascii_lines else 1
+        # Calculate dimensions for scaling - ensure minimum of 1 to prevent division by zero
+        max_line_length = max((len(line) for line in ascii_lines), default=1)
+        if max_line_length == 0:
+            max_line_length = 1
         num_lines = len(ascii_lines)
+        if num_lines == 0:
+            return
         
         # Calculate font size to fit the ASCII art in the canvas
         # Use a monospace font size that fits both width and height
@@ -397,6 +405,18 @@ class AuthControlPanel:
     def refresh_ascii_art(self):
         """Refresh the ASCII art display with the current custom art."""
         self.create_background_ascii_in_text_widget()
+    
+    def on_canvas_resize(self, event):
+        """Handle canvas resize with debouncing to prevent excessive redraws."""
+        # Cancel any pending resize timer
+        if self.resize_timer is not None:
+            self.root.after_cancel(self.resize_timer)
+        
+        # Schedule a new redraw after the debounce delay
+        self.resize_timer = self.root.after(
+            ASCIIArtConfig.RESIZE_DEBOUNCE_MS,
+            self.create_background_ascii_in_text_widget
+        )
         
     def create_ui(self):
         """Create the main UI layout."""
@@ -762,8 +782,8 @@ class AuthControlPanel:
         self.log_text.tag_config("ERROR", foreground=ColorScheme.ACCENT_PRIMARY)
         self.log_text.tag_config("SUCCESS", foreground=ColorScheme.ACCENT_PRIMARY)
         
-        # Bind canvas resize event to redraw ASCII art
-        self.ascii_canvas.bind("<Configure>", lambda e: self.create_background_ascii_in_text_widget())
+        # Bind canvas resize event to redraw ASCII art with debouncing
+        self.ascii_canvas.bind("<Configure>", self.on_canvas_resize)
         
         # Initial ASCII art rendering (delayed to allow canvas to render)
         self.root.after(ASCIIArtConfig.CANVAS_RENDER_DELAY_MS, self.create_background_ascii_in_text_widget)
