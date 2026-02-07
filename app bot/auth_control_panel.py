@@ -89,6 +89,9 @@ class AuthControlPanel:
         # Load current config
         self.load_config()
         
+        # Setup auto-save on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
     def setup_logging(self):
         """Setup logging to capture bot logs."""
         log_handler = LogHandler(self.log_queue)
@@ -100,8 +103,124 @@ class AuthControlPanel:
         auth_logger.addHandler(log_handler)
         auth_logger.setLevel(logging.INFO)
         
+    def create_background_ascii(self):
+        """Create the background ASCII art layer."""
+        # Background ASCII art - placed behind everything
+        background_ascii = """
+                                                                      ...................                                                                                         
+                                                                      ...  ..............                                                                                         
+                                                                       .........::==:....                                                                                         
+                                                                 .............:-----=-...                                                                                         
+                                                                  ..........:---------...                                                                                         
+                                                                 .........:----=-----=:..                                                                                         
+                ..                       ........ ..........     .......:==----::------..                                                                                         
+                ..  ..      ...   .....  ..............................=*=---:....::=--:.                                                                                         
+                  .....     ............. ...........:---========--:::+#+--:........:=--.                                                                                         
+               ...............................:-=+**####################*+=-::.......:-=-.....                                                                                    
+               ....:::--:::................-+*#############################%%%##*+=-:.:-=.....                                                                                    
+               ...-=-:::::------::::....-+###################################%%%##%%%#**=-.....                                                                                   
+           .......:-::::-------------=*#%%######################################%%##%%%%%#-......                                                                                 
+           .......:--::--:-=-.-:=..:+#%############################################%%#%%%%%-...                                                                                   
+           ........--:::-:........=#%################################################%%##%%%=..                                                                                   
+                ...-=--::.......:#%####################################################%%##%#-.......                                                                             
+                ....+=--.......=########################################################%%%###:......                                                                             
+                ....-+=--:...:*##########################################**##############%%%%#*......                                                                             
+                .....=*=-:.:+####################*#########################**##############%%%#=.....       ...                                                                   
+                ......**-:=#####################**###########################**###**#########%%#-....       ....                                                                  
+               .......:*#*%######################*#############################**###**###**####%%=...                                                                             
+           ..... ... ..:#%%%###%#########################**################**###***########**##%%%+.......                                                                        
+           .....      ..:#%%##############################**#####*####%#####++####**############%%%*:......                                                                       
+                      ...-#%%#################*###*#%######**###############+=*####**##%###%%####%%%#=.....                                                                       
+                     .....*%%#########*##%%###*#####%%######*##*#######**###+--+#%###*##%#*#%%###%%%%%*-.........       .                                                         
+                     ....+%%%%########*##%###**###########%%#####**####**%%%#+==*#%%##**#%##%%%###%%%%%#=................                                                         
+                      ..+%%%%%#######**#%%##########**####%%%#####**###*=+##*=::-++#%%####%###%%###%%%%##*-............. ..                                                       
+               ........+#%%%%########**#%%#####%##***+*###%%%%%####*###*--*##=:::-+=*%%%##%%##%%%##%%%%%###*-.:::::::::...............                                            
+               .......+#%%%%%########*##%%#####%%%###*++###%%%%%#####%%*-:=##+::::-=-+%%%##%%#%%%%##%%%%%##*+-:...............:::.....                                            
+                .....=##%%%%%########*##%%##%%%%%%+=**==+##%%%%%%####%%*-:-+#=:::::=-:=%%%%%%##%%%%#%%%%#+:.......................::....                                          
+                ....-###%%%%%#*######*##%%##%%%%%#+-=*=-==+#%%%%%%###%%*:::=*-..::::-::=#%%%%%##%%%%%%*=........  ...... ..  .......::......  ....                                
+                ....*%##%#%%%########*##%%%%#*#%%#=::+*--===#%%%%%%#%%#+::.-=:.....:::::=%%%%%%#%%%%*-.........      .. ..............::....  ....                                
+               ....-####%#%%%########*##%%%%*+#%%*-:::+=::==-+##%%%%%%#=:..::........:::-%%%%@%#%%%*:.........       ......... ........::.........                                
+               ....+*##%%#%%%%#######*##%%%%*=*#%+-::::--:::=--+*%%%%%#-:..............:-#%%%%%%%%*............      ............. ....::-:.......                                
+              ....-+*##%%#%%%%###%%##*###%%#+-=*%+::::::-:...----=*%%#*-.....:::::-=**+-:*%%%%%%%*:.............      ....:......   ...:::-:......                                
+               ...-+###%%#%%%%%##%%##**#%%%#+--=*==++++=-::--::.:::=##=:...:::-*%%####%%=+%%%%%%#-... ..........     .....::....... ...:----:.....                                
+                .:-+###%%#%%%%%%#%%%#**##%%#=--=#%@@@@@@@@%*=:.....:-+=.....:+*=::.....::=%%%%%%*.... ............. .......:...........:--:::....                                 
+                .:-*###%%#%%%%%%%#%%%#*##%%#+-=#%*=::*%@@@@%#+.......:-.....:-:....:.....-%%%%%%=..........................:...........::-::-...                                  
+               ..:=*%##%%#%%%%%%%%%%%##*#%%%#=*@#=-::=%@@%%@+::...................::::::.:#%%%%%=..........::..............::..........::-::-.....                                
+          ......:-=#%##%%#%%%%%##%%%%%###%%%%**%#=+%@%%%%##%#:....................::::::.:#%%%%%=...........:...............:..........::::-:.....                                
+          ......:-+#%##%%#%%%%%+:*%%#%%%##%%%%*+#+:+%%%*++++:......................::....:#%%%%%+...........::..............:........::::::-:.....                                
+           .....:-*%##*%%#%%%%%=..-+=*%%%%%%%%%*--:.:*%%#+:::::........:.................:#%%%%%*:...........::.............::.......:::-:-:......                                
+           ....::=####*#%#%%%%%-...--=*%%%%%%%%%+-:....:::::::::.........................-#%%%%%#=.........:::::............:::.....:::==--:..........                ..... ......
+           ....:-+####*#%#%%%%#.....--=%%%%%%%%%%*:..:..::::::::........................:--%%%%%%*:..:::::::::::::.........::::::::::-=-----==-:.......                ...........
+           ....:-*######%#%%%%+......:=+#%%%%%%%%%*-..:::::::::.......::-=++-..........::..=%%%%%%+..::::::::::::::::::::...:=-::::---------::::::.....               .......::--=
+           ....-=*######%#%%%%:........-+#%%%%%%%%%#-::::::::......-=--------:.......:-:....-#%%%%%+:::::::::::::::::::::::-=----::................:....................:-=+******
+          .....-+#######%#%%%*..........-==#%%%%%%%%#+:...........:----------:.....:-:.......:+%%%%%*=:::::::::::::-=---------:......................:...........::----=+***++++++
+          .....=*#######%#%%%=..........:=-=#%%%%%%%%#*=:..........:--------:....:::..........:=**+++-::::::::::::-=-------:..........................::..::::--===++**+++++++++++
+          ....:=*#######%#%%#:...........:+--*%%%%%%%%##=::::.......::::::::...:::......:::::::::::-:-:::::::::::-=----:...............................:====+++*++++++++++***+++++
+           ...:+###########%+.....    ....-+-:+#%%%%%%%##=.:::-::............::--:..:--:::::::::::-..:--::::---==----:..................................-=====+++++*******###*****
+           ...-*###########%=.....    .....=*-.-#%%%%%%%%#+...-=--::::::::::::::-=--::::::::::..:-:..::------------:.....................................=++*******************++=
+           ...-*##########%#:....     ......-*-.:+#%%%%%%%#+...--::::-------::---:.::::::.......:-:...::-----=-----......................................-****++==-::.............
+          ....-*###########+......         ..:+=..:*#%%%%#**-..:-:::-----::..::...:.............:-:..::::----=----:.... ......................::.........:+=:..:+=:...............
+          ....=#########%%#-......          ...:-:..=#%%###+-:.--:::::::::::....................::-:::::::-------::.... ......................:-::........:.......=+-.............
+          ...:+*########%%+.......    ....  .........::::::::::::::::::::::......................::--::::::::--:::.............................::::::....:-.........-+=:......... 
+          ...-**########%%-......      ..............:::::::::::::...::::........................:::---:::::::=-:::............:::.............:::::::::.-#+..........:++:........
+          ...=**########%#:....        ..........:::::.................:........................:::::::------::---::............:::............::::::::::*%%#=..........-++:......
+         ...:+**########%+....        ..........:..........................................:::::::::::--:::.....:---:..........::::...........::-::::::-*%%%%%*-..........-**-....
+         ...-**+#########-....        ...................................:::::::....:::::::::::::::---:::::.......:--:.:::...::::::::........:::-:::::=#%%%%%%%%*:..........-*+:..
+       .....=#*+*######%+....    ...  ................................::::::::::::::::::::::::::------::::::....:::::-::::::::::::-:::.......:::-:::::+#%%%%%%%%%#+:..........=#+:
+     ......:+#*+*#######-...... ....  ............................:::::::::::::::::::::::::-------------::::::::::::::-::::::::::::::::::::::::=:......:*%%%%%%%%%%#-...........+#
+   ........-*#*+*######*:......      ........................::::::::::--::--::::::::::::...:---=-:::--=--::::::::::-:..:::::::::::::::::::::::...   ....-#%%%%%%%%%%+:..........:
+   ........=##*+*######=....    ....  ...............::::::::::::::.::-::..................:-==:...::::-=------:::--......---::::::--..:::--:.....    ....:*%%%%%%%%%%#-..........
+   .......:+###+*######-.....  .....  .............:::::::::::::..:::::..................:==-........:::-=---::--.................................    ......-#%%%%%%%%%#+:........
+..  ......-*###++#####+...... ......  ................:::::::.:::::::.............::-===-:.............::--=-.............    .. ..  .........            ...:+%%%%%%%%###-.......
+..........=####*+#####-............ ........:..........::::--=-::::::::::----------:::..................::-:..............                                 ....=#%%%%%%####=......
+.........:*####*+#%##*:...........  ........::.:::::::::---*++=-------::--::::..........................::::............                                  ......:*%%%%%#####+:....
+.........-#####*+*%##=...             .......:.::::::::::--++:::.......................................:::::.....                                             ...:+%%%%%#####*-...
+  .......+######**##*-..              ........:::::::::::-=+=::::....................................::::::::....                                             .....=#%%%#######=..
+.... ...:*######**##+:..              ... ....::.:::::::--++-.::::..........................:::::::::::::::::.... ....                                        ......-*%%########=.
+.... ...=########*##-...                  .....::..:::::-=+=::::::::......................:::::::::::::::::--..........                                        ......:+##########+
+.......:+########***:...                  ......:....:::-+=:::::::::::..................:::::.......:::..::::::........                                         .......+##########
+.......-########%**=....                    .....:...::-+=::::::::::::::.............::::::...............::..::.......                                         ........=#########
+.......=#######%%#+-...                     .....::..:-==::::::::::::::::::::::::::::::::......................::.....                                                ...=*#######
+   ...:*#######%%#+:...                     ......-::-=-:::::::::::::::::::::::::::::::..........................:.....                                               ....-*######
+   ...-########%%%+:...                     .......==-::::::::::::::::::::::::::::.:::..................::........:.....                                              .....=*#####
+......=########%%#=.....                    .......-::::::::::::::::::::::::::::.........::::-------::---====--:...:.......                                           ......=*####
+.....:*#######%%%*:....                     .......:::::::::::::::::::::::::::::.....::----------------------::-----:......                                           .......=####
+.....-########%%%+......                    ... ...:-::::.....::::::::::::::::::::::-------:::::-------::::--::......:-::..                                           ........+###
+.....=%#######%%#-..:.....                       ...-:.........::::::::::::::::::-------:::::::::::---::....:............-:.....                                      ........:*##
+.....*%#######%%*:..::......                      .::..........:.:::::::::::::::::-------::.......::::::::......::.............-+:...                                       .......:*#
+....:#%#######%%+....-.......               ..... .-:..........:..::::-----::----:--:............:::........:--.........:+*=.....                                     ..........=#
+....=%%%#####%%#=....::......               ......::...............----------------:......................:.:---.......*+----....                                     ...........+
+....*%%%#####%%*:.....-:.....               .....::...............----------------::................:=-----==--------==----=:....  ...                                .... .......
+...:#%%%#####%%+......--.....               .....-=-==----:....:------:::::::::::::......:------------------------==--::-=-......  ...                                ....  ......
+...-%%%%#####%#=.... .:=:........           ....:==-+=---------------:::::.....:::-..:----::::::::::::::::::-------==---:.....                                                    
+...+%%%%#####%*:.... ..=-.....              ........-----::::-------:::.........::----::::::::::::::::::::::::-------:......                                                      
+..:*%%%%####%%+....   .:+:....              .......---::...::---::::::..........::-=::::::::::::::::::::::::::::::::::....                                                        
+..:#%%%%%###%#=...    ..+=....              ......--:.......:-:....::...........::--::::::::::::::::::::::::::::::....:....                                                       
+..=%%%%%%###%*-...   ...-*:...              ....:-:.........::.....::......:::---=-:::::::::::::::::::::........::.........                                                       
+..+%%%%%%###%*:....  ....*=...             ....:::..........:.....:==------------::::::::::::::::::::::.................:............                                        .....
+..#%%%%%%####+.....    ..=#:.....          ...:-...    ............-=+==----------:::::::::::::::::::....................:............                                      ......
+.:%%%%%%%####=.....  ....:#=.....          ...-:.....  ......::-::---=------------::::::::.......::::.....................:-..........                                      ......
+.-%%%%%%%###*:......  ....=#:....           ...:--..........-......-=-----------::::::::..........::::......................::......                                        ......
+.=%%%%%%%###*:............:#=....           ....:--::::----::.......-------:::::::::::::..........:::::.......................:-:.....                                            
+.+%%%%%%%###+..............+*....           ............... .........-::::::::::::::::::..........:==:::.....................::---:...                                            
+.*%%%%%%%###=..............:#-...           ..........................:.::::::..::::::::...........:-::::..................:-=-::::-:..
+"""
+        
+        # Create a label for the background ASCII with dark red faded color
+        bg_ascii_label = tk.Label(self.root,
+                                  text=background_ascii,
+                                  font=("Courier New", 5),  # Smaller font for background
+                                  fg="#330000",  # Dark red, very faded
+                                  bg=ColorScheme.BG_DARK,
+                                  justify=tk.CENTER)
+        # Place it in the center background
+        bg_ascii_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+        
     def create_ui(self):
         """Create the main UI layout."""
+        # Create background ASCII art layer first
+        self.create_background_ascii()
+        
         # Main container with two panels
         main_container = tk.Frame(self.root, bg=ColorScheme.BG_DARK)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -122,40 +241,8 @@ class AuthControlPanel:
         
     def create_header(self, parent):
         """Create the header section."""
-        header = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
+        header = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.FLAT, bd=0)
         header.pack(fill=tk.X, pady=(0, 10))
-        
-        # Super detailed ASCII art crypto cat
-        crypto_cat = """
-                       _.._
-                     .'    '.
-                    /   __   \\
-                   |   /  \\   |
-                   |   \\__/   |     ₿  Ξ
-                  /\\          /\\
-                 /  '.______.'  \\
-                /    /|    |\\    \\
-               |    | |    | |    |
-               |    |_|    |_|    |
-               |   /   \\  /   \\   |
-               |  /     \\/     \\  |
-              /__/      ||      \\__\\
-             /   \\      ||      /   \\
-            /     \\     ||     /     \\
-           /  ⚡   \\    ||    /  ₿   \\
-          /__      \\   ||   /      __\\
-             \\_    /\\  ||  /\\    _/
-               \\__/  \\_||_/  \\__/
-                     crypto
-                   anarchist
-        """
-        cat_label = tk.Label(header,
-                            text=crypto_cat,
-                            font=("Courier New", 7),
-                            fg=ColorScheme.TEXT_SECONDARY,
-                            bg=ColorScheme.BG_MEDIUM,
-                            justify=tk.CENTER)
-        cat_label.pack(pady=(5, 5))
         
         # Main title with aesthetic styling
         title = tk.Label(header, 
@@ -163,7 +250,7 @@ class AuthControlPanel:
                         font=("Courier New", 24, "bold"),
                         fg=ColorScheme.ACCENT_PRIMARY,
                         bg=ColorScheme.BG_MEDIUM,
-                        pady=5)
+                        pady=15)
         title.pack()
         
         # Decorative line
@@ -184,17 +271,17 @@ class AuthControlPanel:
         subtitle.pack()
         
         # Bottom decorative element
-        cat_art = tk.Label(header,
-                          text="▲ crypto secured ▲",
+        secure_label = tk.Label(header,
+                          text="▲ secured ▲",
                           font=("Courier New", 8),
                           fg=ColorScheme.TEXT_MUTED,
                           bg=ColorScheme.BG_MEDIUM,
-                          pady=8)
-        cat_art.pack()
+                          pady=10)
+        secure_label.pack()
         
     def create_control_section(self, parent):
         """Create the control buttons section."""
-        control_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
+        control_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.FLAT, bd=0)
         control_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
         
         # Section title with aesthetic brackets
@@ -229,52 +316,64 @@ class AuthControlPanel:
         btn_container = tk.Frame(control_frame, bg=ColorScheme.BG_MEDIUM)
         btn_container.pack(fill=tk.X, padx=15, pady=(0, 15))
         
-        # Start button with monochrome aesthetic
+        # Start button with smooth modern aesthetic
         self.start_btn = tk.Button(btn_container,
-                                   text="[ ▶ START ]",
+                                   text="▶ START",
                                    font=("Courier New", 11, "bold"),
                                    fg=ColorScheme.BG_DARK,
                                    bg=ColorScheme.ACCENT_SUCCESS,
                                    activebackground="#cccccc",
                                    relief=tk.FLAT,
                                    cursor="hand2",
-                                   padx=20,
-                                   pady=10,
+                                   padx=25,
+                                   pady=12,
+                                   borderwidth=0,
                                    command=self.start_bot)
         self.start_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
+        # Add hover effect
+        self.start_btn.bind("<Enter>", lambda e: self.start_btn.config(bg="#e0e0e0"))
+        self.start_btn.bind("<Leave>", lambda e: self.start_btn.config(bg=ColorScheme.ACCENT_SUCCESS))
         
-        # Stop button with monochrome aesthetic
+        # Stop button with smooth modern aesthetic
         self.stop_btn = tk.Button(btn_container,
-                                  text="[ ■ STOP ]",
+                                  text="■ STOP",
                                   font=("Courier New", 11, "bold"),
                                   fg=ColorScheme.BG_DARK,
                                   bg=ColorScheme.TEXT_SECONDARY,
                                   activebackground="#999999",
                                   relief=tk.FLAT,
                                   cursor="hand2",
-                                  padx=20,
-                                  pady=10,
+                                  padx=25,
+                                  pady=12,
+                                  borderwidth=0,
                                   state=tk.DISABLED,
                                   command=self.stop_bot)
         self.stop_btn.pack(side=tk.LEFT, padx=(0, 10), expand=True, fill=tk.X)
+        # Add hover effect
+        self.stop_btn.bind("<Enter>", lambda e: self.stop_btn.config(bg="#999999") if self.stop_btn['state'] == 'normal' else None)
+        self.stop_btn.bind("<Leave>", lambda e: self.stop_btn.config(bg=ColorScheme.TEXT_SECONDARY) if self.stop_btn['state'] == 'normal' else None)
         
-        # Reload config button with monochrome aesthetic
+        # Reload config button with smooth modern aesthetic
         reload_btn = tk.Button(btn_container,
-                              text="[ ⟳ RELOAD ]",
+                              text="⟳ RELOAD",
                               font=("Courier New", 11, "bold"),
                               fg=ColorScheme.BG_DARK,
                               bg=ColorScheme.TEXT_SECONDARY,
                               activebackground="#999999",
                               relief=tk.FLAT,
                               cursor="hand2",
-                              padx=20,
-                              pady=10,
+                              padx=25,
+                              pady=12,
+                              borderwidth=0,
                               command=self.load_config)
         reload_btn.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # Add hover effect
+        reload_btn.bind("<Enter>", lambda e: reload_btn.config(bg="#999999"))
+        reload_btn.bind("<Leave>", lambda e: reload_btn.config(bg=ColorScheme.TEXT_SECONDARY))
         
     def create_config_section(self, parent):
         """Create the configuration editing section."""
-        config_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
+        config_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.FLAT, bd=0)
         config_frame.pack(fill=tk.BOTH, expand=True, padx=5)
         
         # Section title
@@ -288,19 +387,23 @@ class AuthControlPanel:
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Save button in title with monochrome aesthetic
+        # Save button in title with smooth modern aesthetic
         save_btn = tk.Button(title_container,
-                            text="[ 💾 SAVE ]",
+                            text="💾 SAVE",
                             font=("Courier New", 9, "bold"),
                             fg=ColorScheme.BG_DARK,
                             bg=ColorScheme.ACCENT_PRIMARY,
                             activebackground="#cccccc",
                             relief=tk.FLAT,
                             cursor="hand2",
-                            padx=15,
-                            pady=5,
+                            padx=18,
+                            pady=8,
+                            borderwidth=0,
                             command=self.save_config)
         save_btn.pack(side=tk.RIGHT)
+        # Add hover effect
+        save_btn.bind("<Enter>", lambda e: save_btn.config(bg="#e0e0e0"))
+        save_btn.bind("<Leave>", lambda e: save_btn.config(bg=ColorScheme.ACCENT_PRIMARY))
         
         # Scrollable config area
         canvas = tk.Canvas(config_frame, bg=ColorScheme.BG_MEDIUM, highlightthickness=0)
@@ -370,7 +473,7 @@ class AuthControlPanel:
             # Fields
             for field_name, label_text, is_password in fields:
                 field_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM)
-                field_frame.pack(fill=tk.X, pady=3)
+                field_frame.pack(fill=tk.X, pady=5)
                 
                 # Label
                 label = tk.Label(field_frame,
@@ -381,7 +484,7 @@ class AuthControlPanel:
                                anchor=tk.W)
                 label.pack(anchor=tk.W, padx=(10, 0))
                 
-                # Entry field
+                # Entry field with modern styling
                 entry = tk.Entry(field_frame,
                                font=("Courier New", 10),
                                fg=ColorScheme.TEXT_PRIMARY,
@@ -389,14 +492,17 @@ class AuthControlPanel:
                                insertbackground=ColorScheme.ACCENT_PRIMARY,
                                relief=tk.FLAT,
                                bd=0,
+                               highlightthickness=1,
+                               highlightbackground=ColorScheme.BG_LIGHT,
+                               highlightcolor=ColorScheme.ACCENT_SECONDARY,
                                show="●" if is_password else "")
-                entry.pack(fill=tk.X, padx=10, pady=(2, 0), ipady=5)
+                entry.pack(fill=tk.X, padx=10, pady=(2, 0), ipady=6)
                 
                 self.config_vars[field_name] = entry
                 
     def create_log_section(self, parent):
         """Create the live log viewer section."""
-        log_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.RAISED, bd=2)
+        log_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM, relief=tk.FLAT, bd=0)
         log_frame.pack(fill=tk.BOTH, expand=True)
         
         # Section title
@@ -410,19 +516,23 @@ class AuthControlPanel:
                 bg=ColorScheme.BG_MEDIUM,
                 anchor=tk.W).pack(side=tk.LEFT)
         
-        # Clear button with monochrome aesthetic
+        # Clear button with smooth modern aesthetic
         clear_btn = tk.Button(title_container,
-                             text="[ 🗑 CLEAR ]",
+                             text="🗑 CLEAR",
                              font=("Courier New", 9, "bold"),
                              fg=ColorScheme.BG_DARK,
                              bg=ColorScheme.TEXT_SECONDARY,
                              activebackground="#999999",
                              relief=tk.FLAT,
                              cursor="hand2",
-                             padx=15,
-                             pady=5,
+                             padx=18,
+                             pady=8,
+                             borderwidth=0,
                              command=self.clear_logs)
         clear_btn.pack(side=tk.RIGHT)
+        # Add hover effect
+        clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg="#999999"))
+        clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg=ColorScheme.TEXT_SECONDARY))
         
         # Log text area
         self.log_text = scrolledtext.ScrolledText(
@@ -614,6 +724,70 @@ class AuthControlPanel:
         self.log_text.delete(1.0, tk.END)
         self.log_text.config(state=tk.DISABLED)
         self.add_log("Logs cleared", "INFO")
+    
+    def on_closing(self):
+        """Handle window closing with auto-save."""
+        try:
+            # Auto-save configuration before closing
+            self.save_config_silent()
+            
+            # Stop bot if running
+            if self.bot_running:
+                self.bot_running = False
+            
+            # Close the window
+            self.root.destroy()
+        except Exception as e:
+            # If auto-save fails, still allow closing
+            print(f"Error during auto-save: {e}")
+            self.root.destroy()
+    
+    def save_config_silent(self):
+        """Save configuration without showing message boxes (for auto-save)."""
+        try:
+            # Use relative path from current file location
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(current_dir, "auth_restorecore_config.py")
+            
+            # Read current config file
+            with open(config_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Update values
+            new_lines = []
+            for line in lines:
+                updated = False
+                for field_name, entry in self.config_vars.items():
+                    if line.strip().startswith(f"{field_name} ="):
+                        value = entry.get().strip()
+                        
+                        # Handle different types
+                        if field_name == "REQUIRE_ADD_PEOPLE":
+                            value = "True" if value.lower() in ['true', '1', 'yes'] else "False"
+                            new_lines.append(f'{field_name} = {value}\n')
+                        elif field_name in ["REQUIRED_PEOPLE_COUNT", "CHANNEL_CREATION_WAIT", "AUTH_CHECK_INTERVAL"]:
+                            new_lines.append(f'{field_name} = {value}\n')
+                        else:
+                            new_lines.append(f'{field_name} = "{value}"\n')
+                        updated = True
+                        break
+                
+                if not updated:
+                    new_lines.append(line)
+            
+            # Write back
+            with open(config_path, 'w') as f:
+                f.writelines(new_lines)
+            
+            # Reload the module
+            import importlib
+            importlib.reload(config_module)
+            importlib.reload(auth_module)
+            
+        except Exception as e:
+            # Silently fail for auto-save
+            pass
 
 
 def main():
