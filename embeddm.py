@@ -256,6 +256,8 @@ async def mdm(ctx, *, message: str):
     # Function to send a single DM
     async def send_dm_to_member(member, log_file):
         nonlocal sent_count, failed_count, client_index, available_senders, total_senders
+        # Note: client_index & available_senders protected by sender_lock
+        # sent_count & failed_count protected by stats_lock
         
         if not dm_active:
             return
@@ -377,6 +379,7 @@ async def mdm(ctx, *, message: str):
             dm_tasks.append(task)
 
         # Wait for all DMs to complete and log any unhandled exceptions
+        # Note: await ensures all tasks complete before with block exits (file remains open)
         results = await asyncio.gather(*dm_tasks, return_exceptions=True)
         
         # Log any unhandled exceptions that weren't caught in send_dm_to_member
