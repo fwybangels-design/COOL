@@ -16,14 +16,18 @@
 #    - Default: 0.05 seconds (50ms)
 #    - Lower = faster DM sending but higher risk of rate limits
 #    - Higher = slower but safer
-#    - Recommended range: 0.01 to 0.5 seconds
+#    - Recommended range: 0.01 to 0.1 seconds
 #
-# 3. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once
+# 3. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once (PRIMARY SPEED CONTROL)
 #    - Look for "MAX_CONCURRENT_DMS" in the DELAY CONFIGURATION section
-#    - Default: 10
+#    - Default: 10 (conservative for safety)
 #    - Higher = faster but more likely to trigger rate limits
 #    - Lower = slower but safer
-#    - Recommended range: 5 to 50
+#    - Recommended range: 10 to 100 (upper limit depends on number of sender tokens)
+#    - Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
+#      Note: "sender tokens" = tokens in TOKENS list excluding the controller (first token)
+#      e.g., with 11 total tokens (1 controller + 10 senders), can use 50 concurrent
+#      e.g., with 21 total tokens (1 controller + 20 senders), can use 100 concurrent
 # ========================================================================
 
 
@@ -54,10 +58,15 @@ TOKENS = [
 # How often to update the status message (in seconds)
 STATUS_UPDATE_INTERVAL = 5.0
 
-# Delay between each DM attempt (in seconds) - Lower = faster but more risky
-DM_DELAY = 0.05  # 50ms between DMs (was 0.2s)
+# Delay between each DM attempt (in seconds) - helps avoid rate limits
+DM_DELAY = 0.05  # 50ms between DMs
 
-# Maximum concurrent DMs being sent at once
+# Maximum concurrent DMs being sent at once (PRIMARY SPEED CONTROL)
+# Default is conservative (10). Increase for faster performance:
+# Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
+# Note: Sender tokens = TOKENS list excluding the first token (controller)
+# e.g., 11 total tokens (1 controller + 10 senders) → set to 50
+# e.g., 21 total tokens (1 controller + 20 senders) → set to 100
 MAX_CONCURRENT_DMS = 10
 
 # --- Globals ---
@@ -318,8 +327,10 @@ async def mdm(ctx, *, message: str):
             view = VerifyButton()
 
             if used_sender is not None:
-                user = await used_sender.fetch_user(member.id)
-                await user.send(content=None, embed=embed, view=view)
+                # Create User object directly without fetching (avoids rate-limited API call)
+                user = discord.Object(id=member.id)
+                channel = await used_sender.create_dm(user)
+                await channel.send(content=None, embed=embed, view=view)
             else:
                 await member.send(content=None, embed=embed, view=view)
 
@@ -355,7 +366,7 @@ async def mdm(ctx, *, message: str):
             current_member_info["id"] = str(member.id)
             current_member_info["status"] = "Success" if success else "Failed"
         
-        # Small delay between DMs
+        # Small delay between DMs to avoid rate limits
         await asyncio.sleep(DM_DELAY)
 
     # Open log file for the entire operation
