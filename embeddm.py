@@ -5,18 +5,21 @@
 # ========================================================================
 # HOW TO ADJUST SPEED AND DELAYS:
 # ========================================================================
-# 1. STATUS_UPDATE_INTERVAL (line ~30): How often the status message updates
+# 1. STATUS_UPDATE_INTERVAL: How often the status message updates
+#    - Look for "STATUS_UPDATE_INTERVAL" in the DELAY CONFIGURATION section
 #    - Default: 5.0 seconds
 #    - Lower = more frequent updates but may hit rate limits
 #    - Higher = less frequent updates but more efficient
 #
-# 2. DM_DELAY (line ~33): Delay between each DM attempt
+# 2. DM_DELAY: Delay between each DM attempt
+#    - Look for "DM_DELAY" in the DELAY CONFIGURATION section
 #    - Default: 0.05 seconds (50ms)
 #    - Lower = faster DM sending but higher risk of rate limits
 #    - Higher = slower but safer
 #    - Recommended range: 0.01 to 0.5 seconds
 #
-# 3. MAX_CONCURRENT_DMS (line ~36): Maximum concurrent DMs at once
+# 3. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once
+#    - Look for "MAX_CONCURRENT_DMS" in the DELAY CONFIGURATION section
 #    - Default: 10
 #    - Higher = faster but more likely to trigger rate limits
 #    - Lower = slower but safer
@@ -365,15 +368,22 @@ async def mdm(ctx, *, message: str):
                 continue
             
             # Create a task with semaphore control
-            async def send_with_semaphore(m=member, lf=log_file):
+            # Using default parameters to capture current loop values
+            async def send_with_semaphore(member_to_dm=member, file_handle=log_file):
                 async with semaphore:
-                    await send_dm_to_member(m, lf)
+                    await send_dm_to_member(member_to_dm, file_handle)
             
             task = asyncio.create_task(send_with_semaphore())
             dm_tasks.append(task)
 
-        # Wait for all DMs to complete
-        await asyncio.gather(*dm_tasks, return_exceptions=True)
+        # Wait for all DMs to complete and log any unhandled exceptions
+        results = await asyncio.gather(*dm_tasks, return_exceptions=True)
+        
+        # Log any unhandled exceptions that weren't caught in send_dm_to_member
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"Unhandled exception in DM task {i}: {result}")
+                log_file.write(f"Unhandled exception in DM task {i}: {result}\n")
 
     # Stop the status update task
     dm_active = False
