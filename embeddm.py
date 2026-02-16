@@ -11,7 +11,14 @@
 #    - Lower = more frequent updates but may hit rate limits
 #    - Higher = less frequent updates but more efficient
 #
-# 2. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once (PRIMARY SPEED CONTROL)
+# 2. DM_DELAY: Delay between each DM attempt
+#    - Look for "DM_DELAY" in the DELAY CONFIGURATION section
+#    - Default: 0.05 seconds (50ms)
+#    - Lower = faster DM sending but higher risk of rate limits
+#    - Higher = slower but safer
+#    - Recommended range: 0.01 to 0.1 seconds
+#
+# 3. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once (PRIMARY SPEED CONTROL)
 #    - Look for "MAX_CONCURRENT_DMS" in the DELAY CONFIGURATION section
 #    - Default: 10 (conservative for safety)
 #    - Higher = faster but more likely to trigger rate limits
@@ -50,6 +57,9 @@ TOKENS = [
 # --- DELAY CONFIGURATION (edit these values to adjust speed) ---
 # How often to update the status message (in seconds)
 STATUS_UPDATE_INTERVAL = 5.0
+
+# Delay between each DM attempt (in seconds) - helps avoid rate limits
+DM_DELAY = 0.05  # 50ms between DMs
 
 # Maximum concurrent DMs being sent at once (PRIMARY SPEED CONTROL)
 # Default is conservative (10). Increase for faster performance:
@@ -317,8 +327,10 @@ async def mdm(ctx, *, message: str):
             view = VerifyButton()
 
             if used_sender is not None:
-                user = await used_sender.fetch_user(member.id)
-                await user.send(content=None, embed=embed, view=view)
+                # Create User object directly without fetching (avoids rate-limited API call)
+                user = discord.Object(id=member.id)
+                channel = await used_sender.create_dm(user)
+                await channel.send(content=None, embed=embed, view=view)
             else:
                 await member.send(content=None, embed=embed, view=view)
 
@@ -353,6 +365,9 @@ async def mdm(ctx, *, message: str):
             current_member_info["name"] = str(member)
             current_member_info["id"] = str(member.id)
             current_member_info["status"] = "Success" if success else "Failed"
+        
+        # Small delay between DMs to avoid rate limits
+        await asyncio.sleep(DM_DELAY)
 
     # Open log file for the entire operation
     with open("massdm.txt", "a", encoding="utf-8") as log_file:
