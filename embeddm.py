@@ -192,6 +192,7 @@ async def mdm(ctx, *, message: str):
     # Shared state for tracking progress
     sent_count = 0
     failed_count = 0
+    failed_members = []  # Track members who failed to receive DM
     current_member_info = {"name": "N/A", "id": "N/A", "status": "Pending"}
     start_time = time.time()
     controller_label = user_label_from_user_obj(getattr(bot, "user", None))
@@ -259,17 +260,14 @@ async def mdm(ctx, *, message: str):
     client_index = 0
     sender_lock = asyncio.Lock()
 
-    # Semaphore to limit concurrent DMs
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_DMS)
-
     # Function to send a single DM
-    async def send_dm_to_member(member, log_file):
+    async def send_dm_to_member(member, log_file, wave_name="Initial"):
         nonlocal sent_count, failed_count, client_index, available_senders, total_senders
         # Note: client_index & available_senders protected by sender_lock
         # sent_count & failed_count protected by stats_lock
         
         if not dm_active:
-            return
+            return False
         
         # Get a sender client
         used_sender = None
@@ -309,7 +307,7 @@ async def mdm(ctx, *, message: str):
                     used_label = user_label_from_user_obj(getattr(used_sender, "user", None))
                     break
 
-        log_message = f"{used_label}  Attempting to DM {member} ({member.id})... "
+        log_message = f"[{wave_name}] {used_label}  Attempting to DM {member} ({member.id})... "
         print(log_message, end="")
         log_file.write(log_message)
 
@@ -349,7 +347,10 @@ async def mdm(ctx, *, message: str):
 
             try:
                 msg = str(e).lower()
-                if used_sender is not None and ("401" in msg or "unauthorized" in msg or isinstance(e, discord.LoginFailure)):
+                # Check if error is related to spam/token being flagged
+                if used_sender is not None and ("401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg or isinstance(e, discord.LoginFailure)):
+                    print(f"\n[WARNING] Sender {used_label} has been flagged/disabled. Marking as dead.")
+                    log_file.write(f"[WARNING] Sender {used_label} has been flagged/disabled. Marking as dead.\n")
                     sender_meta[used_sender]["dead"] = True
                     async with sender_lock:
                         try:
@@ -368,36 +369,171 @@ async def mdm(ctx, *, message: str):
         
         # Small delay between DMs to avoid rate limits
         await asyncio.sleep(DM_DELAY)
+        
+        return success
 
     # Open log file for the entire operation
     with open("massdm.txt", "a", encoding="utf-8") as log_file:
         log_file.write(f"\nMass DM started by {ctx.author} in {ctx.guild.name} ({ctx.guild.id})\n")
         log_file.write(f"Message: {message}\n\n")
 
-        # Create DM tasks for all members
+        # Initial wave: Create DM tasks for all members
+        log_file.write("=== INITIAL WAVE ===\n")
+        print("\n=== INITIAL WAVE ===")
         dm_tasks = []
+        member_task_map = {}  # Track which task corresponds to which member
+        
         for member in ctx.guild.members:
             if member.bot or member == bot.user:
                 continue
             
-            # Create a task with semaphore control
-            # Using default parameters to capture current loop values
-            async def send_with_semaphore(member_to_dm=member, file_handle=log_file):
-                async with semaphore:
-                    await send_dm_to_member(member_to_dm, file_handle)
+            # Create a task for concurrent DM sending
+            async def send_dm_task(member_to_dm=member, file_handle=log_file):
+                success = await send_dm_to_member(member_to_dm, file_handle, "Initial Wave")
+                if not success:
+                    async with stats_lock:
+                        failed_members.append(member_to_dm)
+                return success
             
-            task = asyncio.create_task(send_with_semaphore())
+            task = asyncio.create_task(send_dm_task())
             dm_tasks.append(task)
+            member_task_map[task] = member
 
-        # Wait for all DMs to complete and log any unhandled exceptions
-        # Note: await ensures all tasks complete before with block exits (file remains open)
+        # Wait for all initial DMs to complete
         results = await asyncio.gather(*dm_tasks, return_exceptions=True)
         
-        # Log any unhandled exceptions that weren't caught in send_dm_to_member
+        # Log any unhandled exceptions
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 print(f"Unhandled exception in DM task {i}: {result}")
                 log_file.write(f"Unhandled exception in DM task {i}: {result}\n")
+        
+        # Get count of initially failed members
+        async with stats_lock:
+            initial_failed_count = len(failed_members)
+        
+        print(f"\n=== INITIAL WAVE COMPLETE ===")
+        print(f"Successfully DMed: {sent_count}")
+        print(f"Failed: {initial_failed_count}")
+        log_file.write(f"\n=== INITIAL WAVE COMPLETE ===\n")
+        log_file.write(f"Successfully DMed: {sent_count}\n")
+        log_file.write(f"Failed: {initial_failed_count}\n\n")
+        
+        # RETRY WAVE 1: Retry failed members with working bots
+        if initial_failed_count > 0:
+            print(f"\n=== RETRY WAVE 1 ===")
+            log_file.write("=== RETRY WAVE 1 ===\n")
+            log_file.write(f"Retrying {initial_failed_count} failed members...\n")
+            
+            # Update status message
+            try:
+                elapsed_time = int(time.time() - start_time)
+                await status_message.edit(content=(
+                    f"**Mass DM Operation - Retry Wave 1**\n"
+                    f"Message: {message}\n"
+                    f"Total Members: {len(ctx.guild.members)}\n"
+                    f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
+                    f"----------------------------------------\n"
+                    f"People DMed: {sent_count}\n"
+                    f"Retrying: {initial_failed_count} members\n"
+                    f"Time Elapsed: {elapsed_time} seconds"
+                ))
+            except Exception:
+                pass
+            
+            # Create copy of failed members for retry
+            async with stats_lock:
+                retry_members_1 = failed_members.copy()
+                failed_members.clear()
+            
+            # Retry failed members
+            retry_tasks_1 = []
+            for member in retry_members_1:
+                async def retry_send_task_1(member_to_dm=member, file_handle=log_file):
+                    success = await send_dm_to_member(member_to_dm, file_handle, "Retry Wave 1")
+                    if not success:
+                        async with stats_lock:
+                            failed_members.append(member_to_dm)
+                    return success
+                
+                task = asyncio.create_task(retry_send_task_1())
+                retry_tasks_1.append(task)
+            
+            # Wait for retry wave 1 to complete
+            retry_results_1 = await asyncio.gather(*retry_tasks_1, return_exceptions=True)
+            
+            async with stats_lock:
+                retry_1_failed_count = len(failed_members)
+            
+            print(f"\n=== RETRY WAVE 1 COMPLETE ===")
+            print(f"Successfully DMed in retry: {initial_failed_count - retry_1_failed_count}")
+            print(f"Still failed: {retry_1_failed_count}")
+            log_file.write(f"\n=== RETRY WAVE 1 COMPLETE ===\n")
+            log_file.write(f"Successfully DMed in retry: {initial_failed_count - retry_1_failed_count}\n")
+            log_file.write(f"Still failed: {retry_1_failed_count}\n\n")
+            
+            # RETRY WAVE 2: Second retry for still-failed members
+            if retry_1_failed_count > 0:
+                print(f"\n=== RETRY WAVE 2 ===")
+                log_file.write("=== RETRY WAVE 2 ===\n")
+                log_file.write(f"Retrying {retry_1_failed_count} still-failed members...\n")
+                
+                # Update status message
+                try:
+                    elapsed_time = int(time.time() - start_time)
+                    await status_message.edit(content=(
+                        f"**Mass DM Operation - Retry Wave 2**\n"
+                        f"Message: {message}\n"
+                        f"Total Members: {len(ctx.guild.members)}\n"
+                        f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
+                        f"----------------------------------------\n"
+                        f"People DMed: {sent_count}\n"
+                        f"Retrying: {retry_1_failed_count} members\n"
+                        f"Time Elapsed: {elapsed_time} seconds"
+                    ))
+                except Exception:
+                    pass
+                
+                # Create copy of still-failed members for second retry
+                async with stats_lock:
+                    retry_members_2 = failed_members.copy()
+                    failed_members.clear()
+                
+                # Retry failed members again
+                retry_tasks_2 = []
+                for member in retry_members_2:
+                    async def retry_send_task_2(member_to_dm=member, file_handle=log_file):
+                        success = await send_dm_to_member(member_to_dm, file_handle, "Retry Wave 2")
+                        if not success:
+                            async with stats_lock:
+                                failed_members.append(member_to_dm)
+                        return success
+                    
+                    task = asyncio.create_task(retry_send_task_2())
+                    retry_tasks_2.append(task)
+                
+                # Wait for retry wave 2 to complete
+                retry_results_2 = await asyncio.gather(*retry_tasks_2, return_exceptions=True)
+                
+                async with stats_lock:
+                    final_failed_count = len(failed_members)
+                
+                print(f"\n=== RETRY WAVE 2 COMPLETE ===")
+                print(f"Successfully DMed in retry: {retry_1_failed_count - final_failed_count}")
+                print(f"Permanently failed: {final_failed_count}")
+                log_file.write(f"\n=== RETRY WAVE 2 COMPLETE ===\n")
+                log_file.write(f"Successfully DMed in retry: {retry_1_failed_count - final_failed_count}\n")
+                log_file.write(f"Permanently failed: {final_failed_count}\n\n")
+        
+        # Log permanently failed members
+        async with stats_lock:
+            if failed_members:
+                log_file.write("\n=== PERMANENTLY FAILED MEMBERS ===\n")
+                print("\n=== PERMANENTLY FAILED MEMBERS ===")
+                for member in failed_members:
+                    failed_msg = f"  - {member} ({member.id})\n"
+                    log_file.write(failed_msg)
+                    print(failed_msg, end="")
 
     # Stop the status update task
     dm_active = False
@@ -409,23 +545,45 @@ async def mdm(ctx, *, message: str):
 
     # Final status update
     elapsed_time = int(time.time() - start_time)
+    
+    # Get final failed count
+    async with stats_lock:
+        final_permanently_failed = len(failed_members)
+    
+    final_status = (
+        f"**Mass DM Operation Completed**\n"
+        f"Message: {message}\n"
+        f"Total Members: {len(ctx.guild.members)}\n"
+        f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
+        f"Time Completed: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
+        f"----------------------------------------\n"
+        f"People Successfully DMed: {sent_count}\n"
+        f"People Permanently Failed: {final_permanently_failed}\n"
+        f"Total Time: {elapsed_time} seconds"
+    )
+    
     try:
-        await status_message.edit(content=(
-            f"**Mass DM Operation Completed**\n"
-            f"Message: {message}\n"
-            f"Total Members: {len(ctx.guild.members)}\n"
-            f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
-            f"Time Completed: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
-            f"----------------------------------------\n"
-            f"People DMed: {sent_count}\n"
-            f"People Failed to DM: {failed_count}\n"
-            f"Total Time: {elapsed_time} seconds"
-        ))
+        await status_message.edit(content=final_status)
     except Exception:
         pass
 
+    # Send detailed DM to author
+    result_message = (
+        f'**Mass DM Operation Complete**\n'
+        f'Successfully sent to: {sent_count} members\n'
+        f'Permanently failed: {final_permanently_failed} members\n\n'
+    )
+    
+    if final_permanently_failed > 0:
+        result_message += "**Permanently Failed Members:**\n"
+        async with stats_lock:
+            for member in failed_members[:20]:  # Limit to first 20 to avoid message length issues
+                result_message += f"  - {member} ({member.id})\n"
+            if final_permanently_failed > 20:
+                result_message += f"  ... and {final_permanently_failed - 20} more (see massdm.txt for full list)\n"
+    
     try:
-        await ctx.author.send(f'Message sent to {sent_count} members. Failed to send to {failed_count} members.')
+        await ctx.author.send(result_message)
     except Exception:
         pass
 
