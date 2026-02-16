@@ -16,9 +16,11 @@
 #    - Default: 10 (conservative for safety)
 #    - Higher = faster but more likely to trigger rate limits
 #    - Lower = slower but safer
-#    - Recommended range: 10 to 100 for better performance
-#    - Rule of thumb: Can set up to (number of sender tokens × 5) for optimal speed
-#      e.g., with 10 sender tokens, can use 50; with 20 tokens, can use 100
+#    - Recommended range: 10 to 100 (upper limit depends on number of sender tokens)
+#    - Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
+#      Note: "sender tokens" = tokens in TOKENS list excluding the controller (first token)
+#      e.g., with 11 total tokens (1 controller + 10 senders), can use 50 concurrent
+#      e.g., with 21 total tokens (1 controller + 20 senders), can use 100 concurrent
 # ========================================================================
 
 
@@ -52,7 +54,9 @@ STATUS_UPDATE_INTERVAL = 5.0
 # Maximum concurrent DMs being sent at once (PRIMARY SPEED CONTROL)
 # Default is conservative (10). Increase for faster performance:
 # Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
-# e.g., 10 sender tokens → 50, or 20 sender tokens → 100
+# Note: Sender tokens = TOKENS list excluding the first token (controller)
+# e.g., 11 total tokens (1 controller + 10 senders) → set to 50
+# e.g., 21 total tokens (1 controller + 20 senders) → set to 100
 MAX_CONCURRENT_DMS = 10
 
 # --- Globals ---
