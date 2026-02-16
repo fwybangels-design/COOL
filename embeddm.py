@@ -13,11 +13,12 @@
 #
 # 2. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once (PRIMARY SPEED CONTROL)
 #    - Look for "MAX_CONCURRENT_DMS" in the DELAY CONFIGURATION section
-#    - Default: 10
+#    - Default: 10 (conservative for safety)
 #    - Higher = faster but more likely to trigger rate limits
 #    - Lower = slower but safer
-#    - Recommended range: 10 to 100 (increased for better performance)
-#    - With 10 tokens, setting this to 50-100 will maximize throughput
+#    - Recommended range: 10 to 100 for better performance
+#    - Rule of thumb: Can set up to (number of sender tokens × 5) for optimal speed
+#      e.g., with 10 sender tokens, can use 50; with 20 tokens, can use 100
 # ========================================================================
 
 
@@ -49,7 +50,9 @@ TOKENS = [
 STATUS_UPDATE_INTERVAL = 5.0
 
 # Maximum concurrent DMs being sent at once (PRIMARY SPEED CONTROL)
-# Increase this value for faster DM sending (recommended: 50-100 with 10 tokens)
+# Default is conservative (10). Increase for faster performance:
+# Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
+# e.g., 10 sender tokens → 50, or 20 sender tokens → 100
 MAX_CONCURRENT_DMS = 10
 
 # --- Globals ---
