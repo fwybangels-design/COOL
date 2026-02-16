@@ -58,17 +58,6 @@ TOKENS = [
 # How often to update the status message (in seconds)
 STATUS_UPDATE_INTERVAL = 5.0
 
-# Delay between each DM attempt (in seconds) - helps avoid rate limits
-DM_DELAY = 0.05  # 50ms between DMs
-
-# Maximum concurrent DMs being sent at once (PRIMARY SPEED CONTROL)
-# Default is conservative (10). Increase for faster performance:
-# Rule of thumb: Set to (number of sender tokens × 5) for optimal speed
-# Note: Sender tokens = TOKENS list excluding the first token (controller)
-# e.g., 11 total tokens (1 controller + 10 senders) → set to 50
-# e.g., 21 total tokens (1 controller + 20 senders) → set to 100
-MAX_CONCURRENT_DMS = 10
-
 # --- Globals ---
 sender_clients = []
 sender_tasks = []
@@ -260,52 +249,44 @@ async def mdm(ctx, *, message: str):
     client_index = 0
     sender_lock = asyncio.Lock()
 
+    # Function to get next available sender (fast, minimal locking)
+    def get_next_sender():
+        nonlocal client_index, available_senders, total_senders
+        if total_senders == 0 or not available_senders:
+            return None, None
+        
+        # Simple round-robin without checks (checks done during DM send)
+        sender = available_senders[client_index % total_senders]
+        client_index += 1
+        label = user_label_from_user_obj(getattr(sender, "user", None))
+        return sender, label
+
     # Function to send a single DM
     async def send_dm_to_member(member, log_file, wave_name="Initial"):
-        nonlocal sent_count, failed_count, client_index, available_senders, total_senders
-        # Note: client_index & available_senders protected by sender_lock
-        # sent_count & failed_count protected by stats_lock
+        nonlocal sent_count, failed_count, available_senders, total_senders
         
         if not dm_active:
             return False
         
-        # Get a sender client
+        # Get a sender client quickly (minimal lock time)
         used_sender = None
         used_label = controller_label
         
+        # Fast bot selection with minimal locking
         async with sender_lock:
-            if total_senders > 0 and available_senders:
-                attempts = 0
-                while attempts < total_senders:
-                    candidate = available_senders[client_index % total_senders]
-                    client_index += 1
-                    attempts += 1
-
-                    if sender_meta.get(candidate, {}).get("dead", False):
-                        try:
-                            available_senders.remove(candidate)
-                        except ValueError:
-                            pass
-                        total_senders = len(available_senders)
-                        continue
-                    if not getattr(candidate, "is_ready", lambda: False)():
-                        try:
-                            available_senders.remove(candidate)
-                        except ValueError:
-                            pass
-                        total_senders = len(available_senders)
-                        continue
-                    if candidate.get_guild(ctx.guild.id) is None:
-                        try:
-                            available_senders.remove(candidate)
-                        except ValueError:
-                            pass
-                        total_senders = len(available_senders)
-                        continue
-
-                    used_sender = candidate
-                    used_label = user_label_from_user_obj(getattr(used_sender, "user", None))
-                    break
+            used_sender, used_label = get_next_sender()
+        
+        # If bot was marked dead or invalid, try to get another one
+        if used_sender and (sender_meta.get(used_sender, {}).get("dead", False) or 
+                           not getattr(used_sender, "is_ready", lambda: False)() or
+                           used_sender.get_guild(ctx.guild.id) is None):
+            async with sender_lock:
+                try:
+                    available_senders.remove(used_sender)
+                    total_senders = len(available_senders)
+                except (ValueError, AttributeError):
+                    pass
+                used_sender, used_label = get_next_sender()
 
         log_message = f"[{wave_name}] {used_label}  Attempting to DM {member} ({member.id})... "
         print(log_message, end="")
@@ -366,9 +347,6 @@ async def mdm(ctx, *, message: str):
             current_member_info["name"] = str(member)
             current_member_info["id"] = str(member.id)
             current_member_info["status"] = "Success" if success else "Failed"
-        
-        # Small delay between DMs to avoid rate limits
-        await asyncio.sleep(DM_DELAY)
         
         return success
 
