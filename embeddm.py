@@ -1,6 +1,31 @@
 # mass_dm_bot_verify_button.py
 # WARNING: Replace placeholder tokens with your real tokens locally.
 # Mass-DMing large numbers of users may violate Discord TOS. Use responsibly.
+#
+# ========================================================================
+# HOW TO ADJUST SPEED AND DELAYS:
+# ========================================================================
+# 1. STATUS_UPDATE_INTERVAL: How often the status message updates
+#    - Look for "STATUS_UPDATE_INTERVAL" in the DELAY CONFIGURATION section
+#    - Default: 5.0 seconds
+#    - Lower = more frequent updates but may hit rate limits
+#    - Higher = less frequent updates but more efficient
+#
+# 2. DM_DELAY: Delay between each DM attempt
+#    - Look for "DM_DELAY" in the DELAY CONFIGURATION section
+#    - Default: 0.05 seconds (50ms)
+#    - Lower = faster DM sending but higher risk of rate limits
+#    - Higher = slower but safer
+#    - Recommended range: 0.01 to 0.5 seconds
+#
+# 3. MAX_CONCURRENT_DMS: Maximum concurrent DMs at once
+#    - Look for "MAX_CONCURRENT_DMS" in the DELAY CONFIGURATION section
+#    - Default: 10
+#    - Higher = faster but more likely to trigger rate limits
+#    - Lower = slower but safer
+#    - Recommended range: 5 to 50
+# ========================================================================
+
 
 import time
 import asyncio
@@ -24,6 +49,16 @@ TOKENS = [
 
     # Add more sender tokens if needed
 ]
+
+# --- DELAY CONFIGURATION (edit these values to adjust speed) ---
+# How often to update the status message (in seconds)
+STATUS_UPDATE_INTERVAL = 5.0
+
+# Delay between each DM attempt (in seconds) - Lower = faster but more risky
+DM_DELAY = 0.05  # 50ms between DMs (was 0.2s)
+
+# Maximum concurrent DMs being sent at once
+MAX_CONCURRENT_DMS = 10
 
 # --- Globals ---
 sender_clients = []
@@ -145,10 +180,15 @@ async def mdm(ctx, *, message: str):
     except Exception:
         pass
 
+    # Shared state for tracking progress
     sent_count = 0
     failed_count = 0
+    current_member_info = {"name": "N/A", "id": "N/A", "status": "Pending"}
     start_time = time.time()
     controller_label = user_label_from_user_obj(getattr(bot, "user", None))
+    
+    # Thread-safe counters using asyncio.Lock
+    stats_lock = asyncio.Lock()
 
     status_message = await ctx.send(
         f"**Mass DM Operation Started**\n"
@@ -163,32 +203,70 @@ async def mdm(ctx, *, message: str):
         f"Time Elapsed: 0 seconds"
     )
 
+    # Status update task - runs every STATUS_UPDATE_INTERVAL seconds
+    async def update_status():
+        while dm_active:
+            await asyncio.sleep(STATUS_UPDATE_INTERVAL)
+            if not dm_active:
+                break
+            
+            elapsed_time = int(time.time() - start_time)
+            async with stats_lock:
+                current_sent = sent_count
+                current_failed = failed_count
+                current_info = current_member_info.copy()
+            
+            try:
+                await status_message.edit(content=(
+                    f"**Mass DM Operation In Progress**\n"
+                    f"Message: {message}\n"
+                    f"Total Members: {len(ctx.guild.members)}\n"
+                    f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
+                    f"----------------------------------------\n"
+                    f"Last DMed: {current_info['name']} ({current_info['id']})\n"
+                    f"Status: {current_info['status']}\n"
+                    f"People DMed: {current_sent}\n"
+                    f"People Failed to DM: {current_failed}\n"
+                    f"Time Elapsed: {elapsed_time} seconds"
+                ))
+            except Exception:
+                pass
+
+    # Start the status update task
+    status_task = asyncio.create_task(update_status())
+
     if sender_clients:
         for _ in range(20):
             if all(getattr(c, "is_ready", lambda: False)() or sender_meta.get(c, {}).get("dead", False) for c in sender_clients):
                 break
             await asyncio.sleep(1)
 
-    with open("massdm.txt", "a", encoding="utf-8") as log_file:
-        log_file.write(f"\nMass DM started by {ctx.author} in {ctx.guild.name} ({ctx.guild.id})\n")
-        log_file.write(f"Message: {message}\n\n")
+    # Prepare available senders
+    available_senders = [
+        s for s in sender_clients
+        if getattr(s, "is_ready", lambda: False)() and s.get_guild(ctx.guild.id) is not None and not sender_meta.get(s, {}).get("dead", False)
+    ]
+    total_senders = len(available_senders)
+    client_index = 0
+    sender_lock = asyncio.Lock()
 
-        available_senders = [
-            s for s in sender_clients
-            if getattr(s, "is_ready", lambda: False)() and s.get_guild(ctx.guild.id) is not None and not sender_meta.get(s, {}).get("dead", False)
-        ]
-        client_index = 0
-        total_senders = len(available_senders)
+    # Semaphore to limit concurrent DMs
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_DMS)
 
-        for member in ctx.guild.members:
-            if not dm_active:
-                break
-            if member.bot or member == bot.user:
-                continue
-
-            used_sender = None
-            used_label = controller_label
-
+    # Function to send a single DM
+    async def send_dm_to_member(member, log_file):
+        nonlocal sent_count, failed_count, client_index, available_senders, total_senders
+        # Note: client_index & available_senders protected by sender_lock
+        # sent_count & failed_count protected by stats_lock
+        
+        if not dm_active:
+            return
+        
+        # Get a sender client
+        used_sender = None
+        used_label = controller_label
+        
+        async with sender_lock:
             if total_senders > 0 and available_senders:
                 attempts = 0
                 while attempts < total_senders:
@@ -197,15 +275,24 @@ async def mdm(ctx, *, message: str):
                     attempts += 1
 
                     if sender_meta.get(candidate, {}).get("dead", False):
-                        available_senders.remove(candidate)
+                        try:
+                            available_senders.remove(candidate)
+                        except ValueError:
+                            pass
                         total_senders = len(available_senders)
                         continue
                     if not getattr(candidate, "is_ready", lambda: False)():
-                        available_senders.remove(candidate)
+                        try:
+                            available_senders.remove(candidate)
+                        except ValueError:
+                            pass
                         total_senders = len(available_senders)
                         continue
                     if candidate.get_guild(ctx.guild.id) is None:
-                        available_senders.remove(candidate)
+                        try:
+                            available_senders.remove(candidate)
+                        except ValueError:
+                            pass
                         total_senders = len(available_senders)
                         continue
 
@@ -213,76 +300,123 @@ async def mdm(ctx, *, message: str):
                     used_label = user_label_from_user_obj(getattr(used_sender, "user", None))
                     break
 
-            log_message = f"{used_label}  Attempting to DM {member} ({member.id})... "
-            print(log_message, end="")
-            log_file.write(log_message)
+        log_message = f"{used_label}  Attempting to DM {member} ({member.id})... "
+        print(log_message, end="")
+        log_file.write(log_message)
+
+        success = False
+        try:
+            # Embed with Verify Now button
+            embed = discord.Embed(
+                title="THEY HAVING LESBIAN ESEX ON CAM",
+                description="verify below to never miss a stage from gio and 24/7 camgirls.\n if u dont verify u might never see a stage agein 👀.",
+                color=0
+            )
+                            
+            embed.set_image(url="https://media.discordapp.net/attachments/1469864352197771382/1472489934509310097/image.png?ex=6992c29d&is=6991711d&hm=17597fe1dbca4ae34347d842d6390a377fa310f4fe27812b890abf25ce950912&=&format=webp&quality=lossless")
+
+            view = VerifyButton()
+
+            if used_sender is not None:
+                user = await used_sender.fetch_user(member.id)
+                await user.send(content=None, embed=embed, view=view)
+            else:
+                await member.send(content=None, embed=embed, view=view)
+
+            async with stats_lock:
+                sent_count += 1
+            success = True
+            print("Success!")
+            log_file.write("Success!\n")
+
+        except Exception as e:
+            async with stats_lock:
+                failed_count += 1
+            error_message = f"Failed: {e}"
+            print(error_message)
+            log_file.write(error_message + "\n")
 
             try:
-                # Embed with Verify Now button
-                embed = discord.Embed(
-                    title="THEY HAVING LESBIAN ESEX ON CAM",
-                    description="verify below to never miss a stage from gio and 24/7 camgirls.\n if u dont verify u might never see a stage agein 👀.",
-                    color=0
-                )
-                                
-                embed.set_image(url="https://media.discordapp.net/attachments/1469864352197771382/1472489934509310097/image.png?ex=6992c29d&is=6991711d&hm=17597fe1dbca4ae34347d842d6390a377fa310f4fe27812b890abf25ce950912&=&format=webp&quality=lossless")
-
-                view = VerifyButton()
-
-
-                if used_sender is not None:
-                    user = await used_sender.fetch_user(member.id)
-                    await user.send(content=None, embed=embed, view=view)
-                else:
-                    await member.send(content=None, embed=embed, view=view)
-
-                sent_count += 1
-                print("Success!")
-                log_file.write("Success!\n")
-
-            except Exception as e:
-                failed_count += 1
-                error_message = f"Failed: {e}"
-                print(error_message)
-                log_file.write(error_message + "\n")
-
-                try:
-                    msg = str(e).lower()
-                    if used_sender is not None and ("401" in msg or "unauthorized" in msg or isinstance(e, discord.LoginFailure)):
-                        sender_meta[used_sender]["dead"] = True
+                msg = str(e).lower()
+                if used_sender is not None and ("401" in msg or "unauthorized" in msg or isinstance(e, discord.LoginFailure)):
+                    sender_meta[used_sender]["dead"] = True
+                    async with sender_lock:
                         try:
                             available_senders.remove(used_sender)
-                        except Exception:
+                        except ValueError:
                             pass
                         total_senders = len(available_senders)
-                except Exception:
-                    pass
-
-            elapsed_time = int(time.time() - start_time)
-            try:
-                await status_message.edit(content=(
-                    f"**Mass DM Operation In Progress**\n"
-                    f"Message: {message}\n"
-                    f"Total Members: {len(ctx.guild.members)}\n"
-                    f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
-                    f"----------------------------------------\n"
-                    f"DMing: {member} ({member.id})\n"
-                    f"Status: {'Success' if member.dm_channel else 'Failed'}\n"
-                    f"People DMed: {sent_count}\n"
-                    f"People Failed to DM: {failed_count}\n"
-                    f"Time Elapsed: {elapsed_time} seconds"
-                ))
             except Exception:
                 pass
+        
+        # Update current member info
+        async with stats_lock:
+            current_member_info["name"] = str(member)
+            current_member_info["id"] = str(member.id)
+            current_member_info["status"] = "Success" if success else "Failed"
+        
+        # Small delay between DMs
+        await asyncio.sleep(DM_DELAY)
 
-            await asyncio.sleep(0.2)
+    # Open log file for the entire operation
+    with open("massdm.txt", "a", encoding="utf-8") as log_file:
+        log_file.write(f"\nMass DM started by {ctx.author} in {ctx.guild.name} ({ctx.guild.id})\n")
+        log_file.write(f"Message: {message}\n\n")
+
+        # Create DM tasks for all members
+        dm_tasks = []
+        for member in ctx.guild.members:
+            if member.bot or member == bot.user:
+                continue
+            
+            # Create a task with semaphore control
+            # Using default parameters to capture current loop values
+            async def send_with_semaphore(member_to_dm=member, file_handle=log_file):
+                async with semaphore:
+                    await send_dm_to_member(member_to_dm, file_handle)
+            
+            task = asyncio.create_task(send_with_semaphore())
+            dm_tasks.append(task)
+
+        # Wait for all DMs to complete and log any unhandled exceptions
+        # Note: await ensures all tasks complete before with block exits (file remains open)
+        results = await asyncio.gather(*dm_tasks, return_exceptions=True)
+        
+        # Log any unhandled exceptions that weren't caught in send_dm_to_member
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(f"Unhandled exception in DM task {i}: {result}")
+                log_file.write(f"Unhandled exception in DM task {i}: {result}\n")
+
+    # Stop the status update task
+    dm_active = False
+    status_task.cancel()
+    try:
+        await status_task
+    except asyncio.CancelledError:
+        pass
+
+    # Final status update
+    elapsed_time = int(time.time() - start_time)
+    try:
+        await status_message.edit(content=(
+            f"**Mass DM Operation Completed**\n"
+            f"Message: {message}\n"
+            f"Total Members: {len(ctx.guild.members)}\n"
+            f"Time Started: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}\n"
+            f"Time Completed: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))}\n"
+            f"----------------------------------------\n"
+            f"People DMed: {sent_count}\n"
+            f"People Failed to DM: {failed_count}\n"
+            f"Total Time: {elapsed_time} seconds"
+        ))
+    except Exception:
+        pass
 
     try:
         await ctx.author.send(f'Message sent to {sent_count} members. Failed to send to {failed_count} members.')
     except Exception:
         pass
-
-    dm_active = False
 
 # --- Command error handlers ---
 @mdm.error
