@@ -58,6 +58,11 @@ TOKENS = [
 # How often to update the status message (in seconds)
 STATUS_UPDATE_INTERVAL = 5.0
 
+# Delay between each DM attempt per bot (in seconds)
+# Each bot works independently, so with 10 bots and 0.10 delay:
+# Each bot sends 10 DMs/second → Total: 100 DMs/second
+DM_DELAY = 0.10
+
 # --- Globals ---
 sender_clients = []
 sender_tasks = []
@@ -246,49 +251,19 @@ async def mdm(ctx, *, message: str):
         if getattr(s, "is_ready", lambda: False)() and s.get_guild(ctx.guild.id) is not None and not sender_meta.get(s, {}).get("dead", False)
     ]
     total_senders = len(available_senders)
-    client_index = 0
-    sender_lock = asyncio.Lock()
 
-    # Function to get next available sender (fast, minimal locking)
-    def get_next_sender():
-        nonlocal client_index, available_senders, total_senders
-        if total_senders == 0 or not available_senders:
-            return None, None
-        
-        # Simple round-robin without checks (checks done during DM send)
-        sender = available_senders[client_index % total_senders]
-        client_index += 1
-        label = user_label_from_user_obj(getattr(sender, "user", None))
-        return sender, label
-
-    # Function to send a single DM
-    async def send_dm_to_member(member, log_file, wave_name="Initial"):
-        nonlocal sent_count, failed_count, available_senders, total_senders
+    # Function to send a single DM from a specific sender
+    async def send_dm_to_member(sender, sender_label, member, log_file, wave_name="Initial"):
+        nonlocal sent_count, failed_count, available_senders
         
         if not dm_active:
             return False
         
-        # Get a sender client quickly (minimal lock time)
-        used_sender = None
-        used_label = controller_label
-        
-        # Fast bot selection with minimal locking
-        async with sender_lock:
-            used_sender, used_label = get_next_sender()
-        
-        # If bot was marked dead or invalid, try to get another one
-        if used_sender and (sender_meta.get(used_sender, {}).get("dead", False) or 
-                           not getattr(used_sender, "is_ready", lambda: False)() or
-                           used_sender.get_guild(ctx.guild.id) is None):
-            async with sender_lock:
-                try:
-                    available_senders.remove(used_sender)
-                    total_senders = len(available_senders)
-                except (ValueError, AttributeError):
-                    pass
-                used_sender, used_label = get_next_sender()
+        # Check if sender is still valid
+        if sender_meta.get(sender, {}).get("dead", False):
+            return False
 
-        log_message = f"[{wave_name}] {used_label}  Attempting to DM {member} ({member.id})... "
+        log_message = f"[{wave_name}] {sender_label}  Attempting to DM {member} ({member.id})... "
         print(log_message, end="")
         log_file.write(log_message)
 
@@ -305,13 +280,10 @@ async def mdm(ctx, *, message: str):
 
             view = VerifyButton()
 
-            if used_sender is not None:
-                # Create User object directly without fetching (avoids rate-limited API call)
-                user = discord.Object(id=member.id)
-                channel = await used_sender.create_dm(user)
-                await channel.send(content=None, embed=embed, view=view)
-            else:
-                await member.send(content=None, embed=embed, view=view)
+            # Create User object directly without fetching (avoids rate-limited API call)
+            user = discord.Object(id=member.id)
+            channel = await sender.create_dm(user)
+            await channel.send(content=None, embed=embed, view=view)
 
             async with stats_lock:
                 sent_count += 1
@@ -329,16 +301,11 @@ async def mdm(ctx, *, message: str):
             try:
                 msg = str(e).lower()
                 # Check if error is related to spam/token being flagged
-                if used_sender is not None and ("401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg or isinstance(e, discord.LoginFailure)):
-                    print(f"\n[WARNING] Sender {used_label} has been flagged/disabled. Marking as dead.")
-                    log_file.write(f"[WARNING] Sender {used_label} has been flagged/disabled. Marking as dead.\n")
-                    sender_meta[used_sender]["dead"] = True
-                    async with sender_lock:
-                        try:
-                            available_senders.remove(used_sender)
-                        except ValueError:
-                            pass
-                        total_senders = len(available_senders)
+                if "401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg or isinstance(e, discord.LoginFailure):
+                    print(f"\n[WARNING] Sender {sender_label} has been flagged/disabled. Marking as dead.")
+                    log_file.write(f"[WARNING] Sender {sender_label} has been flagged/disabled. Marking as dead.\n")
+                    sender_meta[sender]["dead"] = True
+                    return False
             except Exception:
                 pass
         
@@ -348,43 +315,190 @@ async def mdm(ctx, *, message: str):
             current_member_info["id"] = str(member.id)
             current_member_info["status"] = "Success" if success else "Failed"
         
+        # Delay between DMs for this bot (allows bot to send at controlled rate)
+        await asyncio.sleep(DM_DELAY)
+        
         return success
+
+    # Helper function to redistribute unprocessed members to working bots
+    async def redistribute_to_workers(unprocessed_members, log_file, wave_name):
+        """Redistribute members from dead bots to working bots"""
+        if not unprocessed_members:
+            return []
+        
+        # Get currently working bots
+        working_bots = [s for s in available_senders if not sender_meta.get(s, {}).get("dead", False)]
+        
+        if not working_bots:
+            print(f"[{wave_name}] No working bots available for redistribution!")
+            log_file.write(f"[{wave_name}] No working bots available for redistribution!\n")
+            return unprocessed_members  # Return as failed
+        
+        print(f"[{wave_name}] Redistributing {len(unprocessed_members)} members to {len(working_bots)} working bots")
+        log_file.write(f"[{wave_name}] Redistributing {len(unprocessed_members)} members to {len(working_bots)} working bots\n")
+        
+        # Partition members among working bots
+        members_per_bot = len(unprocessed_members) // len(working_bots)
+        remainder = len(unprocessed_members) % len(working_bots)
+        
+        redistribution_tasks = []
+        start_idx = 0
+        for i, sender in enumerate(working_bots):
+            count = members_per_bot + (1 if i < remainder else 0)
+            end_idx = start_idx + count
+            assigned = unprocessed_members[start_idx:end_idx]
+            
+            if assigned:
+                task = asyncio.create_task(bot_worker(sender, i, assigned, log_file, f"{wave_name} (Redistributed)"))
+                redistribution_tasks.append(task)
+            
+            start_idx = end_idx
+        
+        # Wait for redistribution to complete
+        redistribution_results = await asyncio.gather(*redistribution_tasks, return_exceptions=True)
+        
+        # Collect failures from redistribution
+        all_failed = []
+        for result in redistribution_results:
+            if isinstance(result, dict):
+                all_failed.extend(result.get('failed', []))
+                # If more bots died during redistribution, recursively redistribute
+                if result.get('unprocessed'):
+                    more_failed = await redistribute_to_workers(result['unprocessed'], log_file, wave_name)
+                    all_failed.extend(more_failed)
+            elif isinstance(result, Exception):
+                print(f"[{wave_name}] Exception during redistribution: {result}")
+        
+        return all_failed
+
+    # Worker function: Each bot processes its assigned members independently
+    async def bot_worker(sender, sender_index, members_subset, log_file, wave_name="Initial", redistributed_members=None):
+        """Independent worker that processes a subset of members for one bot"""
+        sender_label = user_label_from_user_obj(getattr(sender, "user", None))
+        failed_in_worker = []
+        unprocessed_members = []  # Members this bot didn't get to process
+        
+        print(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) starting with {len(members_subset)} members")
+        log_file.write(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) starting with {len(members_subset)} members\n")
+        
+        for idx, member in enumerate(members_subset):
+            if not dm_active:
+                # Collect remaining members if operation is cancelled
+                unprocessed_members = members_subset[idx:]
+                break
+            
+            # Check if bot is still alive before attempting DM
+            if sender_meta.get(sender, {}).get("dead", False):
+                print(f"\n[{wave_name}] Bot worker {sender_index} ({sender_label}) stopped - bot is dead")
+                log_file.write(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) stopped - bot is dead\n")
+                # Collect remaining members (including current one)
+                unprocessed_members = members_subset[idx:]
+                break
+            
+            success = await send_dm_to_member(sender, sender_label, member, log_file, wave_name)
+            
+            # If bot just died on this DM
+            if sender_meta.get(sender, {}).get("dead", False):
+                print(f"\n[{wave_name}] Bot worker {sender_index} ({sender_label}) was flagged/killed on member {member}")
+                log_file.write(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) was flagged/killed on member {member}\n")
+                
+                # Retry this specific member once
+                print(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) retrying the member that caused the flag...")
+                log_file.write(f"[{wave_name}] Retrying member {member} that caused bot to be flagged...\n")
+                retry_success = await send_dm_to_member(sender, sender_label, member, log_file, wave_name)
+                if not retry_success:
+                    failed_in_worker.append(member)
+                
+                # Collect all remaining unprocessed members
+                unprocessed_members = members_subset[idx + 1:]
+                print(f"[{wave_name}] Bot worker {sender_index} has {len(unprocessed_members)} unprocessed members to redistribute")
+                log_file.write(f"[{wave_name}] Bot worker {sender_index} has {len(unprocessed_members)} unprocessed members to redistribute\n")
+                break
+            
+            if not success:
+                failed_in_worker.append(member)
+        
+        print(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) completed")
+        log_file.write(f"[{wave_name}] Bot worker {sender_index} ({sender_label}) completed\n")
+        
+        return {
+            'failed': failed_in_worker,
+            'unprocessed': unprocessed_members,
+            'sender_died': sender_meta.get(sender, {}).get("dead", False)
+        }
 
     # Open log file for the entire operation
     with open("massdm.txt", "a", encoding="utf-8") as log_file:
         log_file.write(f"\nMass DM started by {ctx.author} in {ctx.guild.name} ({ctx.guild.id})\n")
         log_file.write(f"Message: {message}\n\n")
 
-        # Initial wave: Create DM tasks for all members
+        # Get list of members to DM (excluding bots)
+        members_to_dm = [m for m in ctx.guild.members if not m.bot and m != bot.user]
+        total_members = len(members_to_dm)
+        
+        if not available_senders:
+            log_file.write("ERROR: No available sender bots!\n")
+            print("ERROR: No available sender bots!")
+            await ctx.send("No sender bots are available. Cannot proceed.")
+            return
+        
+        # Partition members among available bots
+        # Each bot gets an equal subset of members to process independently
+        members_per_bot = total_members // len(available_senders)
+        remainder = total_members % len(available_senders)
+        
+        bot_assignments = []
+        start_idx = 0
+        for i, sender in enumerate(available_senders):
+            # Distribute remainder members to first few bots
+            count = members_per_bot + (1 if i < remainder else 0)
+            end_idx = start_idx + count
+            assigned_members = members_to_dm[start_idx:end_idx]
+            bot_assignments.append((sender, i, assigned_members))
+            start_idx = end_idx
+        
+        # Initial wave: Create independent worker for each bot
         log_file.write("=== INITIAL WAVE ===\n")
+        log_file.write(f"Total members to DM: {total_members}\n")
+        log_file.write(f"Available bots: {len(available_senders)}\n")
+        log_file.write(f"Members per bot: ~{members_per_bot}\n\n")
         print("\n=== INITIAL WAVE ===")
-        dm_tasks = []
-        member_task_map = {}  # Track which task corresponds to which member
+        print(f"Total members to DM: {total_members}")
+        print(f"Available bots: {len(available_senders)}")
+        print(f"Members per bot: ~{members_per_bot}\n")
         
-        for member in ctx.guild.members:
-            if member.bot or member == bot.user:
-                continue
-            
-            # Create a task for concurrent DM sending
-            async def send_dm_task(member_to_dm=member, file_handle=log_file):
-                success = await send_dm_to_member(member_to_dm, file_handle, "Initial Wave")
-                if not success:
-                    async with stats_lock:
-                        failed_members.append(member_to_dm)
-                return success
-            
-            task = asyncio.create_task(send_dm_task())
-            dm_tasks.append(task)
-            member_task_map[task] = member
-
-        # Wait for all initial DMs to complete
-        results = await asyncio.gather(*dm_tasks, return_exceptions=True)
+        # Launch all bot workers in parallel
+        worker_tasks = []
+        for sender, sender_idx, assigned_members in bot_assignments:
+            task = asyncio.create_task(bot_worker(sender, sender_idx, assigned_members, log_file, "Initial Wave"))
+            worker_tasks.append(task)
         
-        # Log any unhandled exceptions
-        for i, result in enumerate(results):
+        # Wait for all workers to complete and collect results
+        worker_results = await asyncio.gather(*worker_tasks, return_exceptions=True)
+        
+        # Aggregate failed members and handle redistribution if bots died
+        unprocessed_for_redistribution = []
+        for i, result in enumerate(worker_results):
             if isinstance(result, Exception):
-                print(f"Unhandled exception in DM task {i}: {result}")
-                log_file.write(f"Unhandled exception in DM task {i}: {result}\n")
+                print(f"Unhandled exception in worker {i}: {result}")
+                log_file.write(f"Unhandled exception in worker {i}: {result}\n")
+            elif isinstance(result, dict):
+                # Add failed members to the failed list
+                async with stats_lock:
+                    failed_members.extend(result.get('failed', []))
+                
+                # Collect unprocessed members if bot died
+                if result.get('unprocessed'):
+                    unprocessed_for_redistribution.extend(result['unprocessed'])
+        
+        # Redistribute members from dead bots to working bots
+        if unprocessed_for_redistribution:
+            print(f"\n[Initial Wave] Found {len(unprocessed_for_redistribution)} unprocessed members from dead bots")
+            log_file.write(f"[Initial Wave] Found {len(unprocessed_for_redistribution)} unprocessed members from dead bots\n")
+            
+            redistribution_failed = await redistribute_to_workers(unprocessed_for_redistribution, log_file, "Initial Wave")
+            async with stats_lock:
+                failed_members.extend(redistribution_failed)
         
         # Get count of initially failed members
         async with stats_lock:
@@ -419,26 +533,57 @@ async def mdm(ctx, *, message: str):
             except Exception:
                 pass
             
-            # Create copy of failed members for retry
-            async with stats_lock:
-                retry_members_1 = failed_members.copy()
-                failed_members.clear()
+            # Get working bots (exclude dead ones)
+            working_senders = [s for s in available_senders if not sender_meta.get(s, {}).get("dead", False)]
             
-            # Retry failed members
-            retry_tasks_1 = []
-            for member in retry_members_1:
-                async def retry_send_task_1(member_to_dm=member, file_handle=log_file):
-                    success = await send_dm_to_member(member_to_dm, file_handle, "Retry Wave 1")
-                    if not success:
-                        async with stats_lock:
-                            failed_members.append(member_to_dm)
-                    return success
+            if not working_senders:
+                log_file.write("No working bots available for retry.\n")
+                print("No working bots available for retry.")
+            else:
+                # Create copy of failed members for retry
+                async with stats_lock:
+                    retry_members_1 = failed_members.copy()
+                    failed_members.clear()
                 
-                task = asyncio.create_task(retry_send_task_1())
-                retry_tasks_1.append(task)
-            
-            # Wait for retry wave 1 to complete
-            retry_results_1 = await asyncio.gather(*retry_tasks_1, return_exceptions=True)
+                # Partition failed members among working bots
+                retry_per_bot = len(retry_members_1) // len(working_senders)
+                retry_remainder = len(retry_members_1) % len(working_senders)
+                
+                retry_assignments = []
+                start_idx = 0
+                for i, sender in enumerate(working_senders):
+                    count = retry_per_bot + (1 if i < retry_remainder else 0)
+                    end_idx = start_idx + count
+                    assigned_members = retry_members_1[start_idx:end_idx]
+                    retry_assignments.append((sender, i, assigned_members))
+                    start_idx = end_idx
+                
+                # Launch retry workers
+                retry_worker_tasks = []
+                for sender, sender_idx, assigned_members in retry_assignments:
+                    task = asyncio.create_task(bot_worker(sender, sender_idx, assigned_members, log_file, "Retry Wave 1"))
+                    retry_worker_tasks.append(task)
+                
+                # Wait for retry workers to complete
+                retry_results = await asyncio.gather(*retry_worker_tasks, return_exceptions=True)
+                
+                # Aggregate failed members and handle redistribution
+                retry_unprocessed = []
+                for result in retry_results:
+                    if isinstance(result, dict):
+                        async with stats_lock:
+                            failed_members.extend(result.get('failed', []))
+                        if result.get('unprocessed'):
+                            retry_unprocessed.extend(result['unprocessed'])
+                
+                # Redistribute if any bots died during retry
+                if retry_unprocessed:
+                    print(f"\n[Retry Wave 1] Found {len(retry_unprocessed)} unprocessed members from dead bots")
+                    log_file.write(f"[Retry Wave 1] Found {len(retry_unprocessed)} unprocessed members from dead bots\n")
+                    
+                    retry_redistribution_failed = await redistribute_to_workers(retry_unprocessed, log_file, "Retry Wave 1")
+                    async with stats_lock:
+                        failed_members.extend(retry_redistribution_failed)
             
             async with stats_lock:
                 retry_1_failed_count = len(failed_members)
@@ -472,26 +617,57 @@ async def mdm(ctx, *, message: str):
                 except Exception:
                     pass
                 
-                # Create copy of still-failed members for second retry
-                async with stats_lock:
-                    retry_members_2 = failed_members.copy()
-                    failed_members.clear()
+                # Get working bots again (some may have died during retry 1)
+                working_senders = [s for s in available_senders if not sender_meta.get(s, {}).get("dead", False)]
                 
-                # Retry failed members again
-                retry_tasks_2 = []
-                for member in retry_members_2:
-                    async def retry_send_task_2(member_to_dm=member, file_handle=log_file):
-                        success = await send_dm_to_member(member_to_dm, file_handle, "Retry Wave 2")
-                        if not success:
-                            async with stats_lock:
-                                failed_members.append(member_to_dm)
-                        return success
+                if not working_senders:
+                    log_file.write("No working bots available for retry wave 2.\n")
+                    print("No working bots available for retry wave 2.")
+                else:
+                    # Create copy of still-failed members for second retry
+                    async with stats_lock:
+                        retry_members_2 = failed_members.copy()
+                        failed_members.clear()
                     
-                    task = asyncio.create_task(retry_send_task_2())
-                    retry_tasks_2.append(task)
-                
-                # Wait for retry wave 2 to complete
-                retry_results_2 = await asyncio.gather(*retry_tasks_2, return_exceptions=True)
+                    # Partition failed members among working bots
+                    retry2_per_bot = len(retry_members_2) // len(working_senders)
+                    retry2_remainder = len(retry_members_2) % len(working_senders)
+                    
+                    retry2_assignments = []
+                    start_idx = 0
+                    for i, sender in enumerate(working_senders):
+                        count = retry2_per_bot + (1 if i < retry2_remainder else 0)
+                        end_idx = start_idx + count
+                        assigned_members = retry_members_2[start_idx:end_idx]
+                        retry2_assignments.append((sender, i, assigned_members))
+                        start_idx = end_idx
+                    
+                    # Launch retry wave 2 workers
+                    retry2_worker_tasks = []
+                    for sender, sender_idx, assigned_members in retry2_assignments:
+                        task = asyncio.create_task(bot_worker(sender, sender_idx, assigned_members, log_file, "Retry Wave 2"))
+                        retry2_worker_tasks.append(task)
+                    
+                    # Wait for retry wave 2 workers to complete
+                    retry2_results = await asyncio.gather(*retry2_worker_tasks, return_exceptions=True)
+                    
+                    # Aggregate permanently failed members and handle redistribution
+                    retry2_unprocessed = []
+                    for result in retry2_results:
+                        if isinstance(result, dict):
+                            async with stats_lock:
+                                failed_members.extend(result.get('failed', []))
+                            if result.get('unprocessed'):
+                                retry2_unprocessed.extend(result['unprocessed'])
+                    
+                    # Redistribute if any bots died during retry wave 2
+                    if retry2_unprocessed:
+                        print(f"\n[Retry Wave 2] Found {len(retry2_unprocessed)} unprocessed members from dead bots")
+                        log_file.write(f"[Retry Wave 2] Found {len(retry2_unprocessed)} unprocessed members from dead bots\n")
+                        
+                        retry2_redistribution_failed = await redistribute_to_workers(retry2_unprocessed, log_file, "Retry Wave 2")
+                        async with stats_lock:
+                            failed_members.extend(retry2_redistribution_failed)
                 
                 async with stats_lock:
                     final_failed_count = len(failed_members)
