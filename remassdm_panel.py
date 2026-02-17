@@ -443,9 +443,9 @@ class RemassDMPanel:
         try:
             self.dm_delay = float(self.dm_delay_var.get())
             if self.dm_delay < 0:
-                raise ValueError()
-        except:
-            messagebox.showerror("Error", "Invalid DM delay value!")
+                raise ValueError("Delay must be non-negative")
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid DM delay value: {e}")
             return
         
         # Update UI
@@ -706,11 +706,13 @@ class RemassDMPanel:
     def update_logs(self):
         """Update logs from the queue."""
         try:
-            while True:
-                if isinstance(self.log_queue.queue[0], tuple):
-                    message, tag = self.log_queue.get_nowait()
+            while not self.log_queue.empty():
+                item = self.log_queue.get_nowait()
+                
+                if isinstance(item, tuple):
+                    message, tag = item
                 else:
-                    message = self.log_queue.get_nowait()
+                    message = item
                     tag = "INFO"
                 
                 self.log_text.config(state="normal")
@@ -718,8 +720,6 @@ class RemassDMPanel:
                 self.log_text.see("end")
                 self.log_text.config(state="disabled")
         except queue.Empty:
-            pass
-        except IndexError:
             pass
         
         # Schedule next update
