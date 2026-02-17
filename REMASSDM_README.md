@@ -39,7 +39,7 @@ This tool scans bot tokens to find users that the bots have previously DMed and 
 ## Configuration
 Edit these values in the `DELAY CONFIGURATION` section:
 
-- `STATUS_UPDATE_INTERVAL`: How often status updates (default: 5.0 seconds)
+- `STATUS_UPDATE_INTERVAL`: How often status updates occur (default: 5.0 seconds)
 - `DM_DELAY`: Delay between each DM per bot (default: 0.10 seconds)
 
 ## Important Notes

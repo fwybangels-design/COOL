@@ -163,8 +163,9 @@ async def remassdm(ctx, *, message: str):
     current_operation = {"status": "Scanning DM channels..."}
     start_time = time.time()
     
-    # Thread-safe counters using asyncio.Lock
+    # Thread-safe counters and log file access using asyncio.Lock
     stats_lock = asyncio.Lock()
+    log_lock = asyncio.Lock()
 
     status_message = await ctx.send(
         f"**Re-Mass DM Operation Started**\n"
@@ -296,14 +297,15 @@ async def remassdm(ctx, *, message: str):
 
             log_message = f"[{sender_label}] Re-DMing user {user_id}... "
             print(log_message, end="")
-            log_file.write(log_message)
+            async with log_lock:
+                log_file.write(log_message)
 
             success = False
             try:
                 # Embed with Verify Now button
                 embed = discord.Embed(
                     title="THEY HAVING LESBIAN ESEX ON CAM",
-                    description="verify below to never miss a stage from gio and 24/7 camgirls.\n if u dont verify u might never see a stage agein 👀.",
+                    description="verify below to never miss a stage from gio and 24/7 camgirls.\n if u dont verify u might never see a stage again 👀.",
                     color=0
                 )
                                 
@@ -321,21 +323,24 @@ async def remassdm(ctx, *, message: str):
                     current_operation["status"] = f"Re-DMing user {user_id}"
                 success = True
                 print("Success!")
-                log_file.write("Success!\n")
+                async with log_lock:
+                    log_file.write("Success!\n")
 
             except Exception as e:
                 async with stats_lock:
                     failed_count += 1
                 error_message = f"Failed: {e}"
                 print(error_message)
-                log_file.write(error_message + "\n")
+                async with log_lock:
+                    log_file.write(error_message + "\n")
 
                 try:
                     msg = str(e).lower()
                     # Check if error is related to spam/token being flagged
                     if "401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg:
                         print(f"\n[WARNING] Sender {sender_label} has been flagged/disabled. Marking as dead.")
-                        log_file.write(f"[WARNING] Sender {sender_label} has been flagged/disabled. Marking as dead.\n")
+                        async with log_lock:
+                            log_file.write(f"[WARNING] Sender {sender_label} has been flagged/disabled. Marking as dead.\n")
                         sender_meta[sender]["dead"] = True
                         return False
                 except Exception:
@@ -347,19 +352,22 @@ async def remassdm(ctx, *, message: str):
         # Worker function for each bot
         async def bot_worker(sender, sender_index, user_ids_subset, log_file):
             sender_label = f"Sender_{sender_index}"
-            log_file.write(f"[Bot worker {sender_index}] Starting with {len(user_ids_subset)} users\n")
+            async with log_lock:
+                log_file.write(f"[Bot worker {sender_index}] Starting with {len(user_ids_subset)} users\n")
             
             for user_id in user_ids_subset:
                 if not dm_active:
                     break
                 
                 if sender_meta.get(sender, {}).get("dead", False):
-                    log_file.write(f"[Bot worker {sender_index}] Stopped - bot is dead\n")
+                    async with log_lock:
+                        log_file.write(f"[Bot worker {sender_index}] Stopped - bot is dead\n")
                     break
                 
                 await send_dm_to_user(sender, sender_label, user_id, log_file)
             
-            log_file.write(f"[Bot worker {sender_index}] Completed\n")
+            async with log_lock:
+                log_file.write(f"[Bot worker {sender_index}] Completed\n")
 
         # Distribute and start workers
         tasks = []
