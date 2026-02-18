@@ -578,13 +578,13 @@ class RemassDMPanel:
         self.logger.info("=== RE-DM PHASE ===")
         users_to_dm = list(scanned_users)
         
-        # Shared counters for tracking progress (with lock for thread safety)
+        # Shared counters for tracking progress (with lock for coroutine safety)
         self.dm_stats = {
             "sent": 0,
             "failed": 0,
             "total": total_users
         }
-        self.dm_stats_lock = asyncio.Lock()  # Protect counter updates
+        self.dm_stats_lock = asyncio.Lock()  # Protect counter updates from concurrent coroutines
         
         # Distribute users across bots
         users_per_bot = len(users_to_dm) // len(available_senders)
@@ -610,8 +610,13 @@ class RemassDMPanel:
         # Wait for all workers
         await asyncio.gather(*worker_tasks, return_exceptions=True)
         
+        # Get final stats (protected read)
+        async with self.dm_stats_lock:
+            final_sent = self.dm_stats['sent']
+            final_failed = self.dm_stats['failed']
+        
         self.logger.info("=== RE-MASS DM COMPLETE ===")
-        self.logger.info(f"Total: {total_users} | Sent: {self.dm_stats['sent']} | Failed: {self.dm_stats['failed']}")
+        self.logger.info(f"Total: {total_users} | Sent: {final_sent} | Failed: {final_failed}")
         self.logger.info(f"Operation finished!")
         
         # Cleanup
@@ -692,7 +697,7 @@ class RemassDMPanel:
             channel = await sender.create_dm(user)
             await channel.send(content=None, embed=embed, view=view)
             
-            # Update stats (thread-safe)
+            # Update stats (coroutine-safe)
             async with self.dm_stats_lock:
                 self.dm_stats['sent'] += 1
             
@@ -702,7 +707,7 @@ class RemassDMPanel:
             return True
             
         except Exception as e:
-            # Update stats (thread-safe)
+            # Update stats (coroutine-safe)
             async with self.dm_stats_lock:
                 self.dm_stats['failed'] += 1
             
