@@ -14,12 +14,11 @@ import time
 from datetime import datetime
 import asyncio
 import discord
-from discord.http import Route
 
 # Import remassdm module functions
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
 
-# Discord channel type constants
+# Discord channel type constants (kept for reference, though now using isinstance checks)
 # Reference: https://discord.com/developers/docs/resources/channel#channel-object-channel-types
 DM_CHANNEL_TYPE = 1  # Direct message channel between two users
 GROUP_DM_CHANNEL_TYPE = 3  # Group DM channel (not used in filtering, but defined for reference)
@@ -639,20 +638,16 @@ class RemassDMPanel:
         try:
             await sender.wait_until_ready()
             
-            # Fetch DM channels from Discord API instead of cached private_channels
-            # This ensures we get all DM history, not just what's cached in memory
-            channels_data = await sender.http.request(Route('GET', '/users/@me/channels'))
-            
-            # Parse the response and extract user IDs from DM channels
-            for channel_data in channels_data:
-                # Filter for DM channels only (type 1), excluding group DMs (type 3)
-                if channel_data.get('type') == DM_CHANNEL_TYPE:
-                    recipients = channel_data.get('recipients', [])
-                    if recipients:
-                        # In a DM channel, there's one recipient (the other user)
-                        user_id = recipients[0].get('id')
-                        if user_id:
-                            user_ids.append(int(user_id))
+            # Use private_channels for bot tokens (API endpoint doesn't work for bots)
+            # Bot tokens cannot use GET /users/@me/channels - this is a Discord API limitation
+            # Instead, we use the cached private_channels which contains DM channels the bot has accessed
+            for channel in sender.private_channels:
+                # Filter for DM channels only (DMChannel type), excluding group DMs
+                if isinstance(channel, discord.DMChannel):
+                    # Get the recipient (the other user in the DM)
+                    recipient = channel.recipient
+                    if recipient:
+                        user_ids.append(recipient.id)
             
             self.logger.info(f"[{sender_label}] Found {len(user_ids)} existing DM channels")
             
