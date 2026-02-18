@@ -19,11 +19,6 @@ from discord.ext import commands
 import discord
 from discord.ui import Button, View
 
-# Discord channel type constants (kept for reference, though now using isinstance checks)
-# Reference: https://discord.com/developers/docs/resources/channel#channel-object-channel-types
-DM_CHANNEL_TYPE = 1  # Direct message channel between two users
-GROUP_DM_CHANNEL_TYPE = 3  # Group DM channel (not used in filtering, but defined for reference)
-
 # --- Intents ---
 intents = discord.Intents.default()
 intents.members = True
@@ -137,7 +132,12 @@ async def scan_bot_dm_channels(sender, sender_label):
         
         # Use private_channels for bot tokens (API endpoint doesn't work for bots)
         # Bot tokens cannot use GET /users/@me/channels - this is a Discord API limitation
-        # Instead, we use the cached private_channels which contains DM channels the bot has accessed
+        # 
+        # IMPORTANT: private_channels only contains DM channels that the bot has accessed since
+        # it started. This means:
+        # - On first run: Only DMs that were already cached when the bot logged in
+        # - After running: Includes all DMs sent during this session
+        # - To get full history: The bot must have interacted with users before (e.g., sent a DM)
         for channel in sender.private_channels:
             # Filter for DM channels only (DMChannel type), excluding group DMs
             if isinstance(channel, discord.DMChannel):
