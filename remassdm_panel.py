@@ -42,12 +42,12 @@ def parse_dm_logs(log_text):
     # Optional: [Initial] catgirl paws#8286  Attempting to DM ...
     # Pattern breakdown:
     # - (?:\[.+?\]\s+)?: Optional [prefix] with space after
-    # - (.+?): Bot name (non-greedy, can include spaces)
+    # - (.+?)(?=#|\s+Attempting): Bot name (stops at # or 'Attempting')
     # - (#\d+|): Discriminator (optional #nnnn)
     # - \s+Attempting to DM: The marker text
     # - .+?: Username (non-greedy)
     # - \((\d+)\): User ID in parentheses
-    pattern = r'(?:\[.+?\]\s+)?(.+?)(#\d+|)\s+Attempting to DM\s+.+?\s+\((\d+)\)'
+    pattern = r'(?:\[.+?\]\s+)?(.+?)(?=#|\s+Attempting)(#\d+|)\s+Attempting to DM\s+.+?\s+\((\d+)\)'
     
     lines = log_text.strip().split('\n')
     
@@ -66,7 +66,8 @@ def parse_dm_logs(log_text):
             if discriminator:
                 bot_label = f"{bot_name}{discriminator}"
             else:
-                # Some bots might not have discriminator in the log
+                # Some bots might not have discriminator in the log (new Discord username system)
+                # This could cause ambiguity if multiple bots share the same name
                 bot_label = bot_name
             
             # Add to map
@@ -564,6 +565,13 @@ class RemassDMPanel:
             self.use_paste_mode = True
             total_bots = len(self.bot_user_map)
             total_users = sum(len(users) for users in self.bot_user_map.values())
+            
+            # Check for bots without discriminators (potential ambiguity)
+            bots_without_disc = [bot for bot in self.bot_user_map.keys() if '#' not in bot]
+            if bots_without_disc:
+                self.add_log(f"⚠ Warning: {len(bots_without_disc)} bot(s) without discriminator may cause matching issues", "WARNING")
+                for bot in bots_without_disc:
+                    self.add_log(f"  - '{bot}' (ensure token matches exactly)", "WARNING")
             
             self.add_log(f"Paste mode enabled: Found {total_bots} bots with {total_users} total DM targets", "SUCCESS")
         

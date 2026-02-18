@@ -68,9 +68,9 @@ The system provides detailed logs:
 Available bot tokens (2): ['bot1#1234', 'bot2#5678']
 Bots found in pasted logs (3): ['bot1#1234', 'bot2#5678', 'bot3#9999']
 ✓ Matched 'bot1#1234' → will DM 2 users
-✓ Matched 'bot2#5678' → will DM 1 users
-✗ No token for 'bot3#9999' → skipping 1 users
-SKIPPED: 1 bots with 1 total users (no matching tokens)
+✓ Matched 'bot2#5678' → will DM 1 user
+✗ No token for 'bot3#9999' → skipping 1 user
+SKIPPED: 1 bot with 1 total user (no matching tokens)
 ✓ READY: 2 bots will DM 3 users total
 ```
 
