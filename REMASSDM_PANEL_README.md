@@ -22,8 +22,16 @@ The panel interface solves a key problem with the original `remassdm.py`:
 ### ⚙️ Configuration Management
 - **Token Management** - Add/edit bot tokens visually
 - **Message Editor** - Type your re-DM message
+- **Paste Mode** - Paste previous DM logs to retry with same bot-user pairings ✨NEW
 - **Timing Controls** - Adjust DM delays
 - **No Files to Edit** - Everything in the GUI
+
+### 📝 Paste Mode (NEW Feature)
+- **Paste DM Logs** - Copy/paste logs from previous DM operations
+- **Strict Bot-User Pairing** - Each bot only DMs users it previously DMed
+- **Auto-Matching** - System automatically matches bot names to tokens
+- **Safe Skipping** - Bots without tokens are skipped (not redistributed)
+- **See:** [PASTE_MODE_README.md](PASTE_MODE_README.md) for detailed guide
 
 ### 📊 Live Log Viewer
 - **Real-Time Logs** - See bot activity as it happens
