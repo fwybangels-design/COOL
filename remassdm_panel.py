@@ -578,13 +578,13 @@ class RemassDMPanel:
         self.logger.info("=== RE-DM PHASE ===")
         users_to_dm = list(scanned_users)
         
-        # Shared counters for tracking progress (with lock for coroutine safety)
+        # Shared counters for tracking progress
         self.dm_stats = {
-            "sent": 0,
-            "failed": 0,
-            "total": total_users
+            "sent": 0,      # Updated by workers (protected by lock)
+            "failed": 0,    # Updated by workers (protected by lock)
+            "total": total_users  # Read-only, set once
         }
-        self.dm_stats_lock = asyncio.Lock()  # Protect counter updates from concurrent coroutines
+        self.dm_stats_lock = asyncio.Lock()  # Protects sent/failed counter updates from concurrent coroutines
         
         # Distribute users across bots
         users_per_bot = len(users_to_dm) // len(available_senders)
