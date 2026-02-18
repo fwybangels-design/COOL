@@ -20,8 +20,9 @@ from discord.http import Route
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
 
 # Discord channel type constants
-DM_CHANNEL_TYPE = 1
-GROUP_DM_CHANNEL_TYPE = 3
+# Reference: https://discord.com/developers/docs/resources/channel#channel-object-channel-types
+DM_CHANNEL_TYPE = 1  # Direct message channel between two users
+GROUP_DM_CHANNEL_TYPE = 3  # Group DM channel (not used in filtering, but defined for reference)
 
 
 class ColorScheme:
