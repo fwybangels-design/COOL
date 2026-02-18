@@ -14,9 +14,15 @@ import time
 from datetime import datetime
 import asyncio
 import discord
+from discord.http import Route
 
 # Import remassdm module functions
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
+
+# Discord channel type constants
+# Reference: https://discord.com/developers/docs/resources/channel#channel-object-channel-types
+DM_CHANNEL_TYPE = 1  # Direct message channel between two users
+GROUP_DM_CHANNEL_TYPE = 3  # Group DM channel (not used in filtering, but defined for reference)
 
 
 class ColorScheme:
@@ -633,9 +639,20 @@ class RemassDMPanel:
         try:
             await sender.wait_until_ready()
             
-            for channel in sender.private_channels:
-                if isinstance(channel, discord.DMChannel) and channel.recipient:
-                    user_ids.append(channel.recipient.id)
+            # Fetch DM channels from Discord API instead of cached private_channels
+            # This ensures we get all DM history, not just what's cached in memory
+            channels_data = await sender.http.request(Route('GET', '/users/@me/channels'))
+            
+            # Parse the response and extract user IDs from DM channels
+            for channel_data in channels_data:
+                # Filter for DM channels only (type 1), excluding group DMs (type 3)
+                if channel_data.get('type') == DM_CHANNEL_TYPE:
+                    recipients = channel_data.get('recipients', [])
+                    if recipients:
+                        # In a DM channel, there's one recipient (the other user)
+                        user_id = recipients[0].get('id')
+                        if user_id:
+                            user_ids.append(int(user_id))
             
             self.logger.info(f"[{sender_label}] Found {len(user_ids)} existing DM channels")
             
