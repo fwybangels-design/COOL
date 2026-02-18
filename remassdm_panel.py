@@ -14,9 +14,14 @@ import time
 from datetime import datetime
 import asyncio
 import discord
+from discord.http import Route
 
 # Import remassdm module functions
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
+
+# Discord channel type constants
+DM_CHANNEL_TYPE = 1
+GROUP_DM_CHANNEL_TYPE = 3
 
 
 class ColorScheme:
@@ -635,13 +640,12 @@ class RemassDMPanel:
             
             # Fetch DM channels from Discord API instead of cached private_channels
             # This ensures we get all DM history, not just what's cached in memory
-            from discord.http import Route
             channels_data = await sender.http.request(Route('GET', '/users/@me/channels'))
             
             # Parse the response and extract user IDs from DM channels
             for channel_data in channels_data:
-                # Type 1 = DM channel, Type 3 = Group DM
-                if channel_data.get('type') == 1:  # DM Channel
+                # Filter for DM channels only (type 1), excluding group DMs (type 3)
+                if channel_data.get('type') == DM_CHANNEL_TYPE:
                     recipients = channel_data.get('recipients', [])
                     if recipients and len(recipients) > 0:
                         # In a DM channel, there's one recipient (the other user)
