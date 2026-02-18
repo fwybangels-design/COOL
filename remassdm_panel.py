@@ -11,12 +11,72 @@ import queue
 import logging
 import sys
 import time
+import re
 from datetime import datetime
 import asyncio
 import discord
 
 # Import remassdm module functions
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
+
+
+def parse_dm_logs(log_text):
+    """
+    Parse pasted DM logs to extract bot-user pairings.
+    
+    Expected format:
+    botname#disc  Attempting to DM username (user_id)... Success/Failed
+    
+    Optional prefix like [Initial] or [Wave_1] is ignored.
+    
+    Returns:
+    {
+        'botname#disc': [user_id1, user_id2, ...],
+        ...
+    }
+    """
+    bot_user_map = {}
+    
+    # Pattern to match the log format
+    # Example: catgirl paws#8286  Attempting to DM dove76 (1467251209617281065)... Success!
+    # Optional: [Initial] catgirl paws#8286  Attempting to DM ...
+    # Pattern breakdown:
+    # - (?:\[.+?\]\s+)?: Optional [prefix] with space after
+    # - (.+?)(?=#|\s+Attempting): Bot name (stops at # or 'Attempting')
+    # - (#\d+|): Discriminator (optional #nnnn)
+    # - \s+Attempting to DM: The marker text
+    # - .+?: Username (non-greedy)
+    # - \((\d+)\): User ID in parentheses
+    pattern = r'(?:\[.+?\]\s+)?(.+?)(?=#|\s+Attempting)(#\d+|)\s+Attempting to DM\s+.+?\s+\((\d+)\)'
+    
+    lines = log_text.strip().split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or 'Attempting to DM' not in line:
+            continue
+        
+        match = re.search(pattern, line)
+        if match:
+            bot_name = match.group(1).strip()
+            discriminator = match.group(2).strip()
+            user_id = int(match.group(3))
+            
+            # Construct bot label
+            if discriminator:
+                bot_label = f"{bot_name}{discriminator}"
+            else:
+                # Some bots might not have discriminator in the log (new Discord username system)
+                # This could cause ambiguity if multiple bots share the same name
+                bot_label = bot_name
+            
+            # Add to map
+            if bot_label not in bot_user_map:
+                bot_user_map[bot_label] = []
+            
+            bot_user_map[bot_label].append(user_id)
+    
+    return bot_user_map
 
 
 class ColorScheme:
@@ -250,6 +310,9 @@ class RemassDMPanel:
         # Message Section
         self.create_message_section(scrollable_frame)
         
+        # Paste DM Log Section
+        self.create_paste_section(scrollable_frame)
+        
         # Delay Configuration
         self.create_delay_section(scrollable_frame)
     
@@ -329,6 +392,44 @@ class RemassDMPanel:
         )
         self.message_text_widget.pack(fill="x", pady=5)
         self.message_text_widget.insert("1.0", "Check out this new update!")
+    
+    def create_paste_section(self, parent):
+        """Create paste DM log section."""
+        section_frame = tk.Frame(parent, bg=ColorScheme.BG_MEDIUM)
+        section_frame.pack(fill="x", pady=(0, 15))
+        
+        # Section title
+        tk.Label(
+            section_frame,
+            text=">> Paste DM Logs (Optional)",
+            font=("Courier New", 10, "bold"),
+            fg=ColorScheme.TEXT_PRIMARY,
+            bg=ColorScheme.BG_MEDIUM
+        ).pack(anchor="w", pady=(0, 5))
+        
+        # Instructions
+        tk.Label(
+            section_frame,
+            text="Paste DM logs to retry with same bot-user pairings. Format: botname#disc  Attempting to DM username (user_id)... Success/Failed",
+            font=("Courier New", 8),
+            fg=ColorScheme.TEXT_MUTED,
+            bg=ColorScheme.BG_MEDIUM,
+            wraplength=450,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 5))
+        
+        # Paste text area
+        self.paste_text_widget = scrolledtext.ScrolledText(
+            section_frame,
+            height=6,
+            font=("Courier New", 8),
+            bg=ColorScheme.BG_LIGHT,
+            fg=ColorScheme.TEXT_PRIMARY,
+            insertbackground=ColorScheme.TEXT_PRIMARY,
+            relief="solid",
+            borderwidth=1
+        )
+        self.paste_text_widget.pack(fill="x", pady=5)
     
     def create_delay_section(self, parent):
         """Create delay configuration section."""
@@ -448,6 +549,32 @@ class RemassDMPanel:
             messagebox.showerror("Error", f"Invalid DM delay value: {e}")
             return
         
+        # Check if paste mode is being used
+        paste_text = self.paste_text_widget.get("1.0", "end-1c").strip()
+        self.use_paste_mode = False
+        self.bot_user_map = {}
+        
+        if paste_text:
+            # Parse the pasted logs
+            self.bot_user_map = parse_dm_logs(paste_text)
+            
+            if not self.bot_user_map:
+                messagebox.showerror("Error", "Could not parse any valid bot-user pairings from pasted logs!")
+                return
+            
+            self.use_paste_mode = True
+            total_bots = len(self.bot_user_map)
+            total_users = sum(len(users) for users in self.bot_user_map.values())
+            
+            # Check for bots without discriminators (potential ambiguity)
+            bots_without_disc = [bot for bot in self.bot_user_map.keys() if '#' not in bot]
+            if bots_without_disc:
+                self.add_log(f"⚠ Warning: {len(bots_without_disc)} bot(s) without discriminator may cause matching issues", "WARNING")
+                for bot in bots_without_disc:
+                    self.add_log(f"  - '{bot}' (ensure token matches exactly)", "WARNING")
+            
+            self.add_log(f"Paste mode enabled: Found {total_bots} bots with {total_users} total DM targets", "SUCCESS")
+        
         # Update UI
         self.operation_running = True
         self.start_btn.config(state="disabled")
@@ -506,7 +633,7 @@ class RemassDMPanel:
         self.logger.info(f"Starting Re-Mass DM operation...")
         self.logger.info(f"Logging in {len(sender_tokens)} sender clients...")
         
-        # Login sender clients
+        # Login sender clients and build a bot_label -> client mapping
         login_tasks = []
         for idx, token in enumerate(sender_tokens):
             if not token or token.strip() == "":
@@ -519,7 +646,8 @@ class RemassDMPanel:
                 self.sender_meta[client] = {
                     "index": idx,
                     "token": token,
-                    "dead": False
+                    "dead": False,
+                    "bot_label": None  # Will be set after login
                 }
                 
                 self.logger.info(f"Initiating login for Sender_{idx}...")
@@ -550,33 +678,107 @@ class RemassDMPanel:
             self.logger.error("No available sender bots!")
             return
         
-        # Phase 1: Scan DM channels
-        self.logger.info("=== SCANNING PHASE ===")
-        scanned_users = set()
+        # Update bot labels for each client
+        for client in self.sender_clients:
+            if not self.sender_meta.get(client, {}).get("dead", False):
+                try:
+                    user = client.user
+                    if user:
+                        name = getattr(user, "name", None)
+                        disc = getattr(user, "discriminator", None)
+                        if name:
+                            if disc and disc != "0":
+                                bot_label = f"{name}#{disc}"
+                            else:
+                                bot_label = name
+                            self.sender_meta[client]["bot_label"] = bot_label
+                            self.logger.info(f"Sender_{self.sender_meta[client]['index']} logged in as: {bot_label}")
+                except Exception as e:
+                    self.logger.warning(f"Could not get bot label for client: {e}")
         
         available_senders = [c for c in self.sender_clients if not self.sender_meta.get(c, {}).get("dead", False)]
         
-        for sender in available_senders:
-            if not self.operation_running:
-                break
+        # Determine operation mode
+        if self.use_paste_mode:
+            # PASTE MODE: Use bot-user mappings from pasted logs
+            self.logger.info("=== PASTE MODE: Using bot-user pairings from logs ===")
+            self.logger.info("Each bot will ONLY DM users it has previously DMed")
             
-            sender_idx = self.sender_meta[sender]["index"]
-            sender_label = f"Sender_{sender_idx}"
+            # Build mapping from bot_label to client
+            label_to_client = {}
+            for client in available_senders:
+                bot_label = self.sender_meta[client].get("bot_label")
+                if bot_label:
+                    label_to_client[bot_label] = client
             
-            user_ids = await self.scan_bot_dm_channels(sender, sender_label)
-            for user_id in user_ids:
-                scanned_users.add(user_id)
-        
-        total_users = len(scanned_users)
-        self.logger.info(f"Total unique users found: {total_users}")
-        
-        if total_users == 0:
-            self.logger.warning("No existing DM channels found!")
-            return
+            self.logger.info(f"Available bot tokens ({len(label_to_client)}): {list(label_to_client.keys())}")
+            self.logger.info(f"Bots found in pasted logs ({len(self.bot_user_map)}): {list(self.bot_user_map.keys())}")
+            
+            # Match pasted bots to available clients
+            bot_assignments = {}  # client -> [user_ids]
+            unmatched_bots = []
+            unmatched_user_count = 0
+            
+            for bot_label, user_ids in self.bot_user_map.items():
+                if bot_label in label_to_client:
+                    client = label_to_client[bot_label]
+                    bot_assignments[client] = user_ids
+                    self.logger.info(f"✓ Matched '{bot_label}' → will DM {len(user_ids)} users")
+                else:
+                    unmatched_bots.append(bot_label)
+                    unmatched_user_count += len(user_ids)
+                    self.logger.warning(f"✗ No token for '{bot_label}' → skipping {len(user_ids)} users")
+            
+            if unmatched_bots:
+                self.logger.warning(f"SKIPPED: {len(unmatched_bots)} bots with {unmatched_user_count} total users (no matching tokens)")
+                self.logger.warning(f"Unmatched bots: {unmatched_bots}")
+            
+            if not bot_assignments:
+                self.logger.error("No matching bots found! Check that bot tokens match pasted log names.")
+                self.logger.error("Make sure the bot usernames/discriminators in your tokens match the logs.")
+                return
+            
+            total_users = sum(len(users) for users in bot_assignments.values())
+            self.logger.info(f"✓ READY: {len(bot_assignments)} bots will DM {total_users} users total")
+            self.logger.info("Each bot will only DM its own assigned users from the logs")
+            
+        else:
+            # NORMAL MODE: Scan DM channels
+            self.logger.info("=== SCANNING PHASE ===")
+            scanned_users = set()
+            
+            for sender in available_senders:
+                if not self.operation_running:
+                    break
+                
+                sender_idx = self.sender_meta[sender]["index"]
+                sender_label = f"Sender_{sender_idx}"
+                
+                user_ids = await self.scan_bot_dm_channels(sender, sender_label)
+                for user_id in user_ids:
+                    scanned_users.add(user_id)
+            
+            total_users = len(scanned_users)
+            self.logger.info(f"Total unique users found: {total_users}")
+            
+            if total_users == 0:
+                self.logger.warning("No existing DM channels found!")
+                return
+            
+            # Distribute users evenly across bots
+            users_to_dm = list(scanned_users)
+            users_per_bot = len(users_to_dm) // len(available_senders)
+            if users_per_bot == 0:
+                users_per_bot = 1
+            
+            bot_assignments = {}
+            for idx, sender in enumerate(available_senders):
+                start_idx = idx * users_per_bot
+                end_idx = start_idx + users_per_bot if idx < len(available_senders) - 1 else len(users_to_dm)
+                bot_assignments[sender] = users_to_dm[start_idx:end_idx]
         
         # Phase 2: Re-DM users
         self.logger.info("=== RE-DM PHASE ===")
-        users_to_dm = list(scanned_users)
         
         # Shared counters for tracking progress
         self.dm_stats = {
@@ -586,20 +788,11 @@ class RemassDMPanel:
         }
         self.dm_stats_lock = asyncio.Lock()  # Protects sent/failed counter updates from concurrent coroutines
         
-        # Distribute users across bots
-        users_per_bot = len(users_to_dm) // len(available_senders)
-        if users_per_bot == 0:
-            users_per_bot = 1
+        self.logger.info(f"Distributing {total_users} users across {len(bot_assignments)} bots")
         
-        self.logger.info(f"Distributing {total_users} users across {len(available_senders)} bots (~{users_per_bot} users per bot)")
-        
-        # Create worker tasks
+        # Create worker tasks using bot_assignments
         worker_tasks = []
-        for idx, sender in enumerate(available_senders):
-            start_idx = idx * users_per_bot
-            end_idx = start_idx + users_per_bot if idx < len(available_senders) - 1 else len(users_to_dm)
-            assigned_users = users_to_dm[start_idx:end_idx]
-            
+        for sender, assigned_users in bot_assignments.items():
             sender_idx = self.sender_meta[sender]["index"]
             self.logger.info(f"Starting worker for Sender_{sender_idx} with {len(assigned_users)} users")
             task = asyncio.create_task(
@@ -658,21 +851,23 @@ class RemassDMPanel:
         return user_ids
     
     async def bot_worker(self, sender, sender_index, user_ids_subset):
-        """Worker function for each bot."""
+        """Worker function for each bot - only DMs assigned users."""
         sender_label = f"Sender_{sender_index}"
-        self.logger.info(f"[Bot worker {sender_index}] Starting with {len(user_ids_subset)} users")
+        bot_label = self.sender_meta[sender].get("bot_label", sender_label)
+        
+        self.logger.info(f"[{bot_label}] Worker starting with {len(user_ids_subset)} assigned users")
         
         for user_id in user_ids_subset:
             if not self.operation_running:
                 break
             
             if self.sender_meta.get(sender, {}).get("dead", False):
-                self.logger.warning(f"[Bot worker {sender_index}] Stopped - bot is dead")
+                self.logger.warning(f"[{bot_label}] Worker stopped - bot is dead")
                 break
             
-            await self.send_dm_to_user(sender, sender_label, user_id)
+            await self.send_dm_to_user(sender, bot_label, user_id)
         
-        self.logger.info(f"[Bot worker {sender_index}] Completed")
+        self.logger.info(f"[{bot_label}] Worker completed")
     
     async def send_dm_to_user(self, sender, sender_label, user_id):
         """Send DM to a user."""
