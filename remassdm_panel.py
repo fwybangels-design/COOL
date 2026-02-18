@@ -636,11 +636,12 @@ class RemassDMPanel:
             # Use private_channels for bot tokens (API endpoint doesn't work for bots)
             # Bot tokens cannot use GET /users/@me/channels - this is a Discord API limitation
             # 
-            # IMPORTANT: private_channels only contains DM channels that the bot has accessed since
-            # it started. This means:
-            # - On first run: Only DMs that were already cached when the bot logged in
-            # - After running: Includes all DMs sent during this session
-            # - To get full history: The bot must have interacted with users before (e.g., sent a DM)
+            # IMPORTANT: private_channels only contains DM channels that the bot has interacted with
+            # in previous sessions (if Discord persisted them) or during the current session.
+            # This means:
+            # - On fresh first run: Likely empty unless Discord cached previous DM history
+            # - After sending DMs: Includes all DMs sent during this and recent sessions
+            # - Limitation: Cannot retrieve complete DM history like user tokens can
             for channel in sender.private_channels:
                 # Filter for DM channels only (DMChannel type), excluding group DMs
                 if isinstance(channel, discord.DMChannel):
