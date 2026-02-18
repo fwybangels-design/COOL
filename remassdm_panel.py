@@ -647,7 +647,7 @@ class RemassDMPanel:
                 # Filter for DM channels only (type 1), excluding group DMs (type 3)
                 if channel_data.get('type') == DM_CHANNEL_TYPE:
                     recipients = channel_data.get('recipients', [])
-                    if recipients and len(recipients) > 0:
+                    if recipients:
                         # In a DM channel, there's one recipient (the other user)
                         user_id = recipients[0].get('id')
                         if user_id:
