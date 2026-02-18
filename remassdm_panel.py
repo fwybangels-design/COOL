@@ -903,7 +903,7 @@ class RemassDMPanel:
             # Send DM
             user = discord.Object(id=user_id)
             channel = await sender.create_dm(user)
-            await channel.send(content=None, embed=embed, view=view)
+            await channel.send(content=self.message_text, embed=embed, view=view)
             
             # Update stats (coroutine-safe)
             async with self.dm_stats_lock:
