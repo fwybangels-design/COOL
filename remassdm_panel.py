@@ -503,12 +503,14 @@ class RemassDMPanel:
         self.sender_meta = {}
         
         sender_tokens = self.tokens[1:]  # Skip controller token for now
+        self.logger.info(f"Starting Re-Mass DM operation...")
         self.logger.info(f"Logging in {len(sender_tokens)} sender clients...")
         
         # Login sender clients
         login_tasks = []
         for idx, token in enumerate(sender_tokens):
             if not token or token.strip() == "":
+                self.logger.warning(f"Skipping empty token at position {idx+1}")
                 continue
             
             try:
@@ -520,27 +522,29 @@ class RemassDMPanel:
                     "dead": False
                 }
                 
+                self.logger.info(f"Initiating login for Sender_{idx}...")
+                
                 async def login_sender(c, t, i):
                     try:
                         await c.login(t)
                         await c.connect(reconnect=False)
                     except Exception as e:
-                        self.logger.error(f"Sender {i} login failed: {e}")
+                        self.logger.error(f"Sender_{i} login failed: {e}")
                         self.sender_meta[c]["dead"] = True
                 
                 task = asyncio.create_task(login_sender(client, token, idx))
                 login_tasks.append(task)
                 
             except Exception as e:
-                self.logger.error(f"Failed to create sender {idx}: {e}")
+                self.logger.error(f"Failed to create Sender_{idx}: {e}")
         
-        # Wait for logins
-        if login_tasks:
-            await asyncio.gather(*login_tasks, return_exceptions=True)
-            await asyncio.sleep(3)
+        # Let logins happen in background, give them time to connect
+        self.logger.info("Waiting for clients to connect...")
+        await asyncio.sleep(3)
+        self.logger.info("Connection phase complete, checking status...")
         
         alive_count = sum(1 for c in self.sender_clients if not self.sender_meta.get(c, {}).get("dead", False))
-        self.logger.info(f"Sender clients ready: {alive_count}/{len(self.sender_clients)} alive")
+        self.logger.info(f"✓ Sender clients ready: {alive_count}/{len(self.sender_clients)} alive")
         
         if alive_count == 0:
             self.logger.error("No available sender bots!")
@@ -574,13 +578,20 @@ class RemassDMPanel:
         self.logger.info("=== RE-DM PHASE ===")
         users_to_dm = list(scanned_users)
         
-        sent_count = 0
-        failed_count = 0
+        # Shared counters for tracking progress
+        self.dm_stats = {
+            "sent": 0,      # Updated by workers (protected by lock)
+            "failed": 0,    # Updated by workers (protected by lock)
+            "total": total_users  # Read-only, set once
+        }
+        self.dm_stats_lock = asyncio.Lock()  # Protects sent/failed counter updates from concurrent coroutines
         
         # Distribute users across bots
         users_per_bot = len(users_to_dm) // len(available_senders)
         if users_per_bot == 0:
             users_per_bot = 1
+        
+        self.logger.info(f"Distributing {total_users} users across {len(available_senders)} bots (~{users_per_bot} users per bot)")
         
         # Create worker tasks
         worker_tasks = []
@@ -590,6 +601,7 @@ class RemassDMPanel:
             assigned_users = users_to_dm[start_idx:end_idx]
             
             sender_idx = self.sender_meta[sender]["index"]
+            self.logger.info(f"Starting worker for Sender_{sender_idx} with {len(assigned_users)} users")
             task = asyncio.create_task(
                 self.bot_worker(sender, sender_idx, assigned_users)
             )
@@ -598,7 +610,13 @@ class RemassDMPanel:
         # Wait for all workers
         await asyncio.gather(*worker_tasks, return_exceptions=True)
         
+        # Get final stats (protected read)
+        async with self.dm_stats_lock:
+            final_sent = self.dm_stats['sent']
+            final_failed = self.dm_stats['failed']
+        
         self.logger.info("=== RE-MASS DM COMPLETE ===")
+        self.logger.info(f"Total: {total_users} | Sent: {final_sent} | Failed: {final_failed}")
         self.logger.info(f"Operation finished!")
         
         # Cleanup
@@ -679,17 +697,25 @@ class RemassDMPanel:
             channel = await sender.create_dm(user)
             await channel.send(content=None, embed=embed, view=view)
             
-            self.logger.info(f"[{sender_label}] Success for user {user_id}!")
+            # Update stats (coroutine-safe)
+            async with self.dm_stats_lock:
+                self.dm_stats['sent'] += 1
+            
+            self.logger.info(f"[{sender_label}] ✓ Success for user {user_id}!")
             
             await asyncio.sleep(self.dm_delay)
             return True
             
         except Exception as e:
-            self.logger.error(f"[{sender_label}] Failed for user {user_id}: {e}")
+            # Update stats (coroutine-safe)
+            async with self.dm_stats_lock:
+                self.dm_stats['failed'] += 1
+            
+            self.logger.error(f"[{sender_label}] ✗ Failed for user {user_id}: {e}")
             
             msg = str(e).lower()
             if "401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg:
-                self.logger.warning(f"[{sender_label}] Bot has been flagged/disabled")
+                self.logger.warning(f"[{sender_label}] ⚠ Bot has been flagged/disabled")
                 self.sender_meta[sender]["dead"] = True
                 return False
             
