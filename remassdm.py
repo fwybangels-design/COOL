@@ -130,10 +130,21 @@ async def scan_bot_dm_channels(sender, sender_label):
         # Wait for the client to be ready
         await sender.wait_until_ready()
         
-        # Get all private channels (DMs)
-        for channel in sender.private_channels:
-            if isinstance(channel, discord.DMChannel) and channel.recipient:
-                user_ids.append(channel.recipient.id)
+        # Fetch DM channels from Discord API instead of cached private_channels
+        # This ensures we get all DM history, not just what's cached in memory
+        from discord.http import Route
+        channels_data = await sender.http.request(Route('GET', '/users/@me/channels'))
+        
+        # Parse the response and extract user IDs from DM channels
+        for channel_data in channels_data:
+            # Type 1 = DM channel, Type 3 = Group DM
+            if channel_data.get('type') == 1:  # DM Channel
+                recipients = channel_data.get('recipients', [])
+                if recipients and len(recipients) > 0:
+                    # In a DM channel, there's one recipient (the other user)
+                    user_id = recipients[0].get('id')
+                    if user_id:
+                        user_ids.append(int(user_id))
         
         print(f"[{sender_label}] Found {len(user_ids)} existing DM channels")
         
