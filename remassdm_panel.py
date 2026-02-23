@@ -12,12 +12,20 @@ import logging
 import sys
 import time
 import re
+import json
 from datetime import datetime
 import asyncio
 import discord
 
 # Import remassdm module functions
 sys.path.insert(0, '/home/runner/work/COOL/COOL')
+
+
+PASTE_FORMAT_HELP = (
+    "Supported formats:\n"
+    "• Old log: botname#disc  Attempting to DM username (user_id)... Success!\n"
+    '• Members JSON: {"members": [{"id": "1234567890"}, ...]}'
+)
 
 
 def parse_dm_logs(log_text):
@@ -77,6 +85,44 @@ def parse_dm_logs(log_text):
             bot_user_map[bot_label].append(user_id)
     
     return bot_user_map
+
+
+def parse_members_json(text):
+    """
+    Parse pasted members JSON log to extract user IDs.
+
+    Expected format:
+    {
+      "members": [
+        { "id": "123456789", "username": "...", ... },
+        ...
+      ]
+    }
+
+    Returns a list of integer user IDs, or an empty list if the text
+    is not in this format.
+    """
+    text = text.strip()
+    if not text.startswith('{'):
+        return []
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return []
+
+    members = data.get("members")
+    if not isinstance(members, list):
+        return []
+
+    ids = []
+    for member in members:
+        raw_id = member.get("id") if isinstance(member, dict) else None
+        if raw_id is not None:
+            try:
+                ids.append(int(raw_id))
+            except (ValueError, TypeError):
+                pass
+    return ids
 
 
 class ColorScheme:
@@ -410,7 +456,7 @@ class RemassDMPanel:
         # Instructions
         tk.Label(
             section_frame,
-            text="Paste DM logs to retry with same bot-user pairings. Format: botname#disc  Attempting to DM username (user_id)... Success/Failed",
+            text=PASTE_FORMAT_HELP,
             font=("Courier New", 8),
             fg=ColorScheme.TEXT_MUTED,
             bg=ColorScheme.BG_MEDIUM,
@@ -553,27 +599,41 @@ class RemassDMPanel:
         paste_text = self.paste_text_widget.get("1.0", "end-1c").strip()
         self.use_paste_mode = False
         self.bot_user_map = {}
+        self.use_json_mode = False
+        self.json_user_ids = []
         
         if paste_text:
-            # Parse the pasted logs
+            # Try old DM-log format first
             self.bot_user_map = parse_dm_logs(paste_text)
-            
-            if not self.bot_user_map:
-                messagebox.showerror("Error", "Could not parse any valid bot-user pairings from pasted logs!")
-                return
-            
-            self.use_paste_mode = True
-            total_bots = len(self.bot_user_map)
-            total_users = sum(len(users) for users in self.bot_user_map.values())
-            
-            # Check for bots without discriminators (potential ambiguity)
-            bots_without_disc = [bot for bot in self.bot_user_map.keys() if '#' not in bot]
-            if bots_without_disc:
-                self.add_log(f"⚠ Warning: {len(bots_without_disc)} bot(s) without discriminator may cause matching issues", "WARNING")
-                for bot in bots_without_disc:
-                    self.add_log(f"  - '{bot}' (ensure token matches exactly)", "WARNING")
-            
-            self.add_log(f"Paste mode enabled: Found {total_bots} bots with {total_users} total DM targets", "SUCCESS")
+
+            if self.bot_user_map:
+                self.use_paste_mode = True
+                total_bots = len(self.bot_user_map)
+                total_users = sum(len(users) for users in self.bot_user_map.values())
+
+                # Check for bots without discriminators (potential ambiguity)
+                bots_without_disc = [bot for bot in self.bot_user_map.keys() if '#' not in bot]
+                if bots_without_disc:
+                    self.add_log(f"⚠ Warning: {len(bots_without_disc)} bot(s) without discriminator may cause matching issues", "WARNING")
+                    for bot in bots_without_disc:
+                        self.add_log(f"  - '{bot}' (ensure token matches exactly)", "WARNING")
+
+                self.add_log(f"Paste mode enabled: Found {total_bots} bots with {total_users} total DM targets", "SUCCESS")
+
+            else:
+                # Try new members JSON format
+                json_ids = parse_members_json(paste_text)
+                if json_ids:
+                    self.use_paste_mode = False
+                    self.json_user_ids = json_ids
+                    self.use_json_mode = True
+                    self.add_log(f"JSON members mode enabled: Found {len(json_ids)} user IDs to DM", "SUCCESS")
+                else:
+                    messagebox.showerror("Error", f"Could not parse pasted text.\n\n{PASTE_FORMAT_HELP}")
+                    self.operation_running = False
+                    self.start_btn.config(state="normal")
+                    self.stop_btn.config(state="disabled")
+                    return
         
         # Update UI
         self.operation_running = True
@@ -741,7 +801,25 @@ class RemassDMPanel:
             total_users = sum(len(users) for users in bot_assignments.values())
             self.logger.info(f"✓ READY: {len(bot_assignments)} bots will DM {total_users} users total")
             self.logger.info("Each bot will only DM its own assigned users from the logs")
-            
+
+        elif self.use_json_mode:
+            # JSON MEMBERS MODE: IDs from pasted members JSON, distributed evenly across bots
+            self.logger.info("=== JSON MEMBERS MODE: Using IDs from pasted members log ===")
+            users_to_dm = list(dict.fromkeys(self.json_user_ids))  # deduplicate, preserve order
+            total_users = len(users_to_dm)
+            self.logger.info(f"Total unique user IDs from JSON: {total_users}")
+
+            if total_users == 0:
+                self.logger.warning("No user IDs found in pasted JSON!")
+                return
+
+            users_per_bot = max(1, len(users_to_dm) // len(available_senders))
+            bot_assignments = {}
+            for idx, sender in enumerate(available_senders):
+                start_idx = idx * users_per_bot
+                end_idx = start_idx + users_per_bot if idx < len(available_senders) - 1 else len(users_to_dm)
+                bot_assignments[sender] = users_to_dm[start_idx:end_idx]
+
         else:
             # NORMAL MODE: Scan DM channels
             self.logger.info("=== SCANNING PHASE ===")
