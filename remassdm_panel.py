@@ -24,6 +24,7 @@ sys.path.insert(0, '/home/runner/work/COOL/COOL')
 PASTE_FORMAT_HELP = (
     "Supported formats:\n"
     "• Old log: botname#disc  Attempting to DM username (user_id)... Success!\n"
+    "• New log: [143/1272] [dev#9103] DM to username (user_id)... ✓\n"
     '• Members JSON: {"members": [{"id": "1234567890"}, ...]}'
 )
 
@@ -32,10 +33,13 @@ def parse_dm_logs(log_text):
     """
     Parse pasted DM logs to extract bot-user pairings.
     
-    Expected format:
-    botname#disc  Attempting to DM username (user_id)... Success/Failed
-    
-    Optional prefix like [Initial] or [Wave_1] is ignored.
+    Supported formats:
+    1. Old format:
+       botname#disc  Attempting to DM username (user_id)... Success/Failed
+       Optional prefix like [Initial] or [Wave_1] is ignored.
+
+    2. New format:
+       [143/1272] [dev#9103] DM to username (user_id)... ✓
     
     Returns:
     {
@@ -45,26 +49,38 @@ def parse_dm_logs(log_text):
     """
     bot_user_map = {}
     
-    # Pattern to match the log format
+    # Pattern 1: old format
     # Example: catgirl paws#8286  Attempting to DM dove76 (1467251209617281065)... Success!
     # Optional: [Initial] catgirl paws#8286  Attempting to DM ...
-    # Pattern breakdown:
-    # - (?:\[.+?\]\s+)?: Optional [prefix] with space after
-    # - (.+?)(?=#|\s+Attempting): Bot name (stops at # or 'Attempting')
-    # - (#\d+|): Discriminator (optional #nnnn)
-    # - \s+Attempting to DM: The marker text
-    # - .+?: Username (non-greedy)
-    # - \((\d+)\): User ID in parentheses
-    pattern = r'(?:\[.+?\]\s+)?(.+?)(?=#|\s+Attempting)(#\d+|)\s+Attempting to DM\s+.+?\s+\((\d+)\)'
+    old_pattern = r'(?:\[.+?\]\s+)?(.+?)(?=#|\s+Attempting)(#\d+|)\s+Attempting to DM\s+.+?\s+\((\d+)\)'
+
+    # Pattern 2: new format
+    # Example: [143/1272] [dev#9103] DM to valentinalechner72906_27346 (1357452982383415427)... ✓
+    new_pattern = r'\[\d+/\d+\]\s+\[([^\]]+)\]\s+DM to\s+\S+\s+\((\d+)\)'
     
     lines = log_text.strip().split('\n')
     
     for line in lines:
         line = line.strip()
-        if not line or 'Attempting to DM' not in line:
+        if not line:
             continue
         
-        match = re.search(pattern, line)
+        # Try new format first
+        if 'DM to' in line:
+            match = re.search(new_pattern, line)
+            if match:
+                bot_label = match.group(1).strip()
+                user_id = int(match.group(2))
+                if bot_label not in bot_user_map:
+                    bot_user_map[bot_label] = []
+                bot_user_map[bot_label].append(user_id)
+                continue
+        
+        # Try old format
+        if 'Attempting to DM' not in line:
+            continue
+        
+        match = re.search(old_pattern, line)
         if match:
             bot_name = match.group(1).strip()
             discriminator = match.group(2).strip()
