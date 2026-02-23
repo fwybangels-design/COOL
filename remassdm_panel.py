@@ -860,9 +860,9 @@ class RemassDMPanel:
         
         # Shared counters for tracking progress
         self.dm_stats = {
-            "sent": 0,      # Updated by workers (protected by lock)
-            "failed": 0,    # Updated by workers (protected by lock)
-            "total": total_users  # Read-only, set once
+            "sent": 0,        # Updated by workers (protected by lock)
+            "failed": 0,      # Updated by workers (protected by lock)
+            "total": total_users   # Read-only, set once
         }
         self.dm_stats_lock = asyncio.Lock()  # Protects sent/failed counter updates from concurrent coroutines
         
@@ -949,12 +949,11 @@ class RemassDMPanel:
     
     async def send_dm_to_user(self, sender, sender_label, user_id):
         """Send DM to a user."""
+        username = str(user_id)  # fallback if recipient name is unavailable
         try:
             # Check if sender is still valid
             if self.sender_meta.get(sender, {}).get("dead", False):
                 return False
-            
-            self.logger.info(f"[{sender_label}] Re-DMing user {user_id}...")
             
             # Create embed
             embed = discord.Embed(
@@ -981,13 +980,17 @@ class RemassDMPanel:
             # Send DM
             user = discord.Object(id=user_id)
             channel = await sender.create_dm(user)
+            recipient = getattr(channel, 'recipient', None)
+            username = getattr(recipient, 'name', None) or username
             await channel.send(content=self.message_text, embed=embed, view=view)
             
             # Update stats (coroutine-safe)
             async with self.dm_stats_lock:
                 self.dm_stats['sent'] += 1
+                progress = self.dm_stats['sent'] + self.dm_stats['failed']
+                total = self.dm_stats['total']
             
-            self.logger.info(f"[{sender_label}] ✓ Success for user {user_id}!")
+            self.logger.info(f"[{progress}/{total}] [{sender_label}] DM to {username} ({user_id})... ✓")
             
             await asyncio.sleep(self.dm_delay)
             return True
@@ -996,8 +999,10 @@ class RemassDMPanel:
             # Update stats (coroutine-safe)
             async with self.dm_stats_lock:
                 self.dm_stats['failed'] += 1
+                progress = self.dm_stats['sent'] + self.dm_stats['failed']
+                total = self.dm_stats['total']
             
-            self.logger.error(f"[{sender_label}] ✗ Failed for user {user_id}: {e}")
+            self.logger.error(f"[{progress}/{total}] [{sender_label}] DM to {username} ({user_id})... ✗ {e}")
             
             msg = str(e).lower()
             if "401" in msg or "unauthorized" in msg or "spam" in msg or "captcha" in msg:
