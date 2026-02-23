@@ -25,7 +25,9 @@ PASTE_FORMAT_HELP = (
     "Supported formats:\n"
     "• Old log: botname#disc  Attempting to DM username (user_id)... Success!\n"
     "• New log: [143/1272] [dev#9103] DM to username (user_id)... ✓\n"
-    '• Members JSON: {"members": [{"id": "1234567890"}, ...]}'
+    '• Members JSON (wrapped): {"members": [{"id": "1234567890"}, ...]}\n'
+    '• Members JSON (array): [{"id": "1234567890", "username": "...", ...}, ...]\n'
+    '• Members list (comma-separated objects): {"id": "123", "username": "..."}, {"id": "456", ...},'
 )
 
 
@@ -107,38 +109,66 @@ def parse_members_json(text):
     """
     Parse pasted members JSON log to extract user IDs.
 
-    Expected format:
-    {
-      "members": [
-        { "id": "123456789", "username": "...", ... },
-        ...
-      ]
-    }
+    Supported formats:
+    1. Wrapped members object:
+       {"members": [{"id": "123456789", "username": "...", ...}, ...]}
+
+    2. JSON array of member objects:
+       [{"id": "123456789", "username": "...", ...}, ...]
+
+    3. Comma-separated member objects (as exported by some tools, with or
+       without a trailing comma):
+       {"id": "123", "username": "...", ...},
+       {"id": "456", "username": "...", ...},
 
     Returns a list of integer user IDs, or an empty list if the text
-    is not in this format.
+    is not in a recognized format.
     """
     text = text.strip()
-    if not text.startswith('{'):
-        return []
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return []
 
-    members = data.get("members")
-    if not isinstance(members, list):
-        return []
+    def extract_ids(members):
+        ids = []
+        for member in members:
+            raw_id = member.get("id") if isinstance(member, dict) else None
+            if raw_id is not None:
+                try:
+                    ids.append(int(raw_id))
+                except (ValueError, TypeError):
+                    pass
+        return ids
 
-    ids = []
-    for member in members:
-        raw_id = member.get("id") if isinstance(member, dict) else None
-        if raw_id is not None:
-            try:
-                ids.append(int(raw_id))
-            except (ValueError, TypeError):
-                pass
-    return ids
+    # Format 2: JSON array [...]
+    if text.startswith('['):
+        try:
+            data = json.loads(text)
+            if isinstance(data, list):
+                return extract_ids(data)
+        except json.JSONDecodeError:
+            pass
+
+    # Formats 1 & 3 both start with '{'.
+    if text.startswith('{'):
+        # Format 1: {"members": [...]}
+        try:
+            data = json.loads(text)
+            members = data.get("members")
+            if isinstance(members, list):
+                return extract_ids(members)
+        except json.JSONDecodeError:
+            pass
+
+        # Format 3: comma-separated objects without outer brackets.
+        # Wrap in [] and strip any trailing comma so it becomes valid JSON.
+        normalized = re.sub(r',\s*$', '', text)
+        wrapped = f"[{normalized}]"
+        try:
+            data = json.loads(wrapped)
+            if isinstance(data, list):
+                return extract_ids(data)
+        except json.JSONDecodeError:
+            pass
+
+    return []
 
 
 class ColorScheme:
