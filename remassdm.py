@@ -15,8 +15,6 @@
 
 import time
 import asyncio
-import json
-import os
 from discord.ext import commands
 import discord
 from discord.ui import Button, View
@@ -45,9 +43,6 @@ STATUS_UPDATE_INTERVAL = 5.0
 # Delay between each DM attempt per bot (in seconds)
 DM_DELAY = 0.10
 
-# --- JSON IDs file (members log format) ---
-IDS_JSON_FILE = "ids.json"
-
 # --- Globals ---
 sender_clients = []
 sender_tasks = []
@@ -66,37 +61,6 @@ def user_label_from_user_obj(user):
     if disc is not None and disc != "":
         return f"{name}#{disc}"
     return f"{name} ({uid})"
-
-# --- Load user IDs from a JSON file in the members log format ---
-def load_ids_from_json_file(filepath):
-    """
-    Reads user IDs from a JSON file in the format:
-    {
-      "members": [
-        { "id": "123456789", ... },
-        ...
-      ]
-    }
-    Returns a list of integer user IDs.
-    """
-    ids = []
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        members = data.get("members", [])
-        for member in members:
-            raw_id = member.get("id")
-            if raw_id is not None:
-                try:
-                    ids.append(int(raw_id))
-                except (ValueError, TypeError):
-                    print(f"[JSON loader] Skipping invalid id: {raw_id!r}")
-        print(f"[JSON loader] Loaded {len(ids)} user IDs from {filepath}")
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        print(f"[JSON loader] Failed to load {filepath}: {e}")
-    return ids
 
 # --- Button view ---
 class VerifyButton(View):
@@ -257,17 +221,6 @@ async def remassdm(ctx, *, message: str):
             
             log_file.write(f"{sender_label} found {len(user_ids)} DM channels\n")
         
-        # Also load IDs from ids.json if it exists (members log format)
-        json_file = "ids.json"
-        json_ids = load_ids_from_json_file(json_file)
-        if json_ids:
-            before = len(scanned_users)
-            for uid in json_ids:
-                scanned_users.add(uid)
-            added = len(scanned_users) - before
-            log_file.write(f"Loaded {len(json_ids)} IDs from {json_file} ({added} new unique)\n")
-            print(f"Loaded {len(json_ids)} IDs from {json_file} ({added} new unique)")
-
         total_users = len(scanned_users)
         log_file.write(f"\nTotal unique users found: {total_users}\n\n")
         print(f"\nTotal unique users found across all bots: {total_users}")
