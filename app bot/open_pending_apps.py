@@ -95,13 +95,13 @@ def get_pending_applications():
     Handles pagination automatically.
     """
     all_requests = []
-    url = f"https://discord.com/api/v9/guilds/{GUILD_ID}/requests"
+    base_url = f"https://discord.com/api/v9/guilds/{GUILD_ID}/requests"
     headers = get_headers()
     params = {"status": "SUBMITTED", "limit": 100}
 
-    while url:
+    while True:
         try:
-            resp = requests.get(url, headers=headers, cookies=COOKIES,
+            resp = requests.get(base_url, headers=headers, cookies=COOKIES,
                                 params=params, timeout=10)
             if resp.status_code == 429:
                 retry_after = resp.json().get("retry_after", RETRY_AFTER_DEFAULT)
@@ -119,13 +119,17 @@ def get_pending_applications():
             # Discord returns either a list directly or {"guild_join_requests": [...]}
             if isinstance(data, list):
                 batch = data
-                url = None  # no pagination info available
             else:
                 batch = data.get("guild_join_requests", [])
-                url = None  # stop after one page unless we detect paging
 
             all_requests.extend(batch)
-            url = None   # Discord doesn't paginate this endpoint with a Link header
+
+            # If fewer results than the limit were returned, we've reached the end
+            if len(batch) < 100:
+                break
+
+            # Use the last request's ID as the cursor for the next page
+            params = {"status": "SUBMITTED", "limit": 100, "after": batch[-1]["id"]}
         except Exception as e:
             logger.error(f"Exception fetching applications: {e}")
             break
@@ -153,29 +157,36 @@ def open_interview(request_id):
         return False
 
 
-def find_interview_channel(user_id):
+def find_interview_channel(user_id, retries=3, retry_delay=2):
     """
     Find the group-DM interview channel that was just opened for user_id.
+    Retries up to `retries` times with `retry_delay` seconds between attempts
+    in case the channel hasn't been created yet.
     Returns the channel_id string or None.
     """
     url = "https://discord.com/api/v9/users/@me/channels"
     headers = get_headers()
-    try:
-        resp = requests.get(url, headers=headers, cookies=COOKIES, timeout=10)
-        if resp.status_code == 429:
-            retry_after = resp.json().get("retry_after", RETRY_AFTER_DEFAULT)
-            time.sleep(retry_after)
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=headers, cookies=COOKIES, timeout=10)
+            if resp.status_code == 429:
+                retry_after = resp.json().get("retry_after", RETRY_AFTER_DEFAULT)
+                time.sleep(retry_after)
+                continue
+            channels = resp.json()
+            if not isinstance(channels, list):
+                return None
+            for ch in channels:
+                if isinstance(ch, dict) and ch.get("type") == 3:
+                    recipient_ids = [u["id"] for u in ch.get("recipients", [])]
+                    if str(user_id) in [str(r) for r in recipient_ids]:
+                        return ch["id"]
+        except Exception as e:
+            logger.error(f"Error finding interview channel for user {user_id}: {e}")
             return None
-        channels = resp.json()
-        if not isinstance(channels, list):
-            return None
-        for ch in channels:
-            if isinstance(ch, dict) and ch.get("type") == 3:
-                recipient_ids = [u["id"] for u in ch.get("recipients", [])]
-                if str(user_id) in [str(r) for r in recipient_ids]:
-                    return ch["id"]
-    except Exception as e:
-        logger.error(f"Error finding interview channel for user {user_id}: {e}")
+        # Channel not found yet — wait and retry
+        if attempt < retries - 1:
+            time.sleep(retry_delay)
     return None
 
 
@@ -200,6 +211,12 @@ def send_message(channel_id, message):
             retry_after = resp.json().get("retry_after", 10)
             logger.warning(f"Rate limited sending message — waiting {retry_after}s")
             time.sleep(retry_after)
+            # Retry once after the rate-limit clears
+            resp = requests.post(url, headers=headers, cookies=COOKIES,
+                                 data=json.dumps(data), timeout=10)
+            if resp.status_code in (200, 201):
+                return True
+            logger.warning(f"Failed to send message on retry. Status: {resp.status_code}")
         else:
             logger.warning(
                 f"Failed to send message. Status: {resp.status_code}"
