@@ -129,7 +129,7 @@ def get_pending_applications():
                 break
 
             # Use the last request's ID as the cursor for the next page
-            params = {"status": "SUBMITTED", "limit": 100, "after": batch[-1]["id"]}
+            params = {"status": "SUBMITTED", "limit": 100, "before": batch[-1]["id"]}
         except Exception as e:
             logger.error(f"Exception fetching applications: {e}")
             break
