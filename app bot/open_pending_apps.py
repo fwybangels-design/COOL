@@ -92,14 +92,14 @@ def get_pending_applications():
     Fetch all pending join-request applications from Discord.
     Returns a list of dicts with at least 'id' (request_id) and
     'user' -> 'id' (user_id).
-    Handles pagination automatically.
+    Handles pagination automatically using cursor-based paging.
     """
     all_requests = []
     url = f"https://discord.com/api/v9/guilds/{GUILD_ID}/requests"
     headers = get_headers()
     params = {"status": "SUBMITTED", "limit": 100}
 
-    while url:
+    while True:
         try:
             resp = requests.get(url, headers=headers, cookies=COOKIES,
                                 params=params, timeout=10)
@@ -119,13 +119,22 @@ def get_pending_applications():
             # Discord returns either a list directly or {"guild_join_requests": [...]}
             if isinstance(data, list):
                 batch = data
-                url = None  # no pagination info available
             else:
                 batch = data.get("guild_join_requests", [])
-                url = None  # stop after one page unless we detect paging
 
             all_requests.extend(batch)
-            url = None   # Discord doesn't paginate this endpoint with a Link header
+
+            # If we received fewer results than the limit, we've reached the last page
+            if len(batch) < params["limit"]:
+                break
+
+            # Paginate using the last request ID as the 'after' cursor
+            last_id = batch[-1].get("id") or batch[-1].get("request_id")
+            if not last_id:
+                logger.warning("Could not extract ID from last batch item for pagination; stopping early.")
+                break
+            params["after"] = last_id
+
         except Exception as e:
             logger.error(f"Exception fetching applications: {e}")
             break
