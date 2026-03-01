@@ -11,6 +11,7 @@ Usage:
 Delay between applications can be tuned with DELAY_BETWEEN_APPS below.
 """
 
+import os
 import sys
 import time
 import json
@@ -18,14 +19,36 @@ import random
 import logging
 import requests
 
-# Import shared config & helpers from the same folder
-from auth_restorecore_config import (
-    TOKEN, GUILD_ID,
-    AUTH_REQUEST_MESSAGE,
-    CHANNEL_CREATION_WAIT,
-    RETRY_AFTER_DEFAULT,
-    COOKIES,
+# ---------------------------------------------------------------------------
+# Configuration — edit these values directly
+# ---------------------------------------------------------------------------
+
+# Your Discord user token
+TOKEN = os.environ.get("DISCORD_TOKEN", "").strip()
+if TOKEN.startswith("Bot "):
+    TOKEN = TOKEN[4:].strip()
+
+# The Discord server/guild ID to process applications for
+GUILD_ID = "1464067001256509452"
+
+# Message sent inside each interview channel when an application is opened
+AUTH_REQUEST_MESSAGE = (
+    "🔐 **Discord Bot Authorization Required**\n\n"
+    "To join this server, you need to authorize our Discord bot.\n\n"
+    "**How it works:**\n"
+    "1. Click the authorization link below\n"
+    "2. Review and accept the bot permissions\n"
+    "3. Once authorized, you'll be **automatically accepted within 2-3 seconds!** ⚡"
 )
+
+# How long (seconds) to wait for Discord to create the interview channel
+CHANNEL_CREATION_WAIT = 2
+
+# Default retry delay (seconds) when rate-limited
+RETRY_AFTER_DEFAULT = 2
+
+# Extra cookies for API requests (leave empty unless needed)
+COOKIES = {}
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -188,7 +211,7 @@ def send_message(channel_id, message):
 
 def main():
     if not TOKEN:
-        logger.error("TOKEN is not set in auth_restorecore_config.py")
+        logger.error("TOKEN is not set. Edit the TOKEN variable in open_pending_apps.py or set the DISCORD_TOKEN environment variable.")
         sys.exit(1)
 
     # Allow an optional custom message as CLI argument
